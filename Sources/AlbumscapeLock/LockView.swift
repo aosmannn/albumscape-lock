@@ -47,19 +47,40 @@ struct InfoOverlayView: View {
 }
 
 /// The date and time at the top, the way the Mac's own lock screen shows them: the full-screen video covers that one.
+/// The numbers are drawn as glass: a see-through white that is brighter at the top, with a light rim on the top edge, a
+/// soft sheen across the upper half and a shadow beneath. When the minute changes, the digits roll over into the new ones.
 struct LockClock: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
+            let time = context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
+                .replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: "")
+                .replacingOccurrences(of: "\u{202F}AM", with: "").replacingOccurrences(of: "\u{202F}PM", with: "")
             VStack(spacing: 0) {
                 Text(context.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.system(size: 26, weight: .semibold))
-                Text(context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current)).replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: ""))
-                    .font(.system(size: 124, weight: .bold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.82))
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 1)
+                glassTime(time)
                     .padding(.top, -10)
             }
-            .foregroundStyle(.white.opacity(0.95))
-            .shadow(color: .black.opacity(0.45), radius: 16, y: 2)
         }
+    }
+
+    private func glassTime(_ time: String) -> some View {
+        let font = Font.system(size: 124, weight: .bold, design: .rounded).monospacedDigit()
+        return Text(time)
+            .font(font)
+            .contentTransition(.numericText())
+            .animation(.smooth(duration: 0.7), value: time)
+            .foregroundStyle(LinearGradient(colors: [.white.opacity(0.78), .white.opacity(0.34)], startPoint: .top, endPoint: .bottom))
+            .overlay {  // the sheen, only on the letters
+                LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.0)], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.55))
+                    .mask(Text(time).font(font).contentTransition(.numericText()).animation(.smooth(duration: 0.7), value: time))
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: .white.opacity(0.55), radius: 0, x: 0, y: -1)  // the light rim on the top edge
+            .shadow(color: .black.opacity(0.28), radius: 0, x: 0, y: 2)   // the dark edge underneath
+            .shadow(color: .black.opacity(0.35), radius: 22, y: 8)
     }
 }
 
