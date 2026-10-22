@@ -92,7 +92,7 @@ final class Overlay {
             window.ignoresMouseEvents = onLockScreen == false
             let full = TapHostingView(rootView: FullScreenView(model: model))
             full.onBadgeClick = { [model] in model.toggleLyrics() }
-            full.onBackgroundClick = { [model] in model.expanded = false }
+            full.onBackgroundClick = { [model] in if model.idleArt == nil { model.expanded = false } }  // the idle shuffle has no player to shrink to
             window.contentView = full
             window.setFrame(screen.frame, display: true)
             window.orderFrontRegardless()
@@ -278,7 +278,7 @@ final class Overlay {
                     guard let self, self.model.expanded else { return }
                     let host = TapHostingView(rootView: FullScreenView(model: self.model))
                     host.onBadgeClick = { [model = self.model] in model.toggleLyrics() }
-                    host.onBackgroundClick = { [model = self.model] in model.expanded = false }
+                    host.onBackgroundClick = { [model = self.model] in if model.idleArt == nil { model.expanded = false } }
                     window.isOpaque = true
                     window.backgroundColor = .black
                     window.contentView = host

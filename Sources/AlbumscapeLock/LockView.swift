@@ -32,8 +32,10 @@ struct InfoOverlayView: View {
                 SongInfo(track: model.idleArt == nil ? model.track : nil, position: model.position(at: context.date), accent: accent, album: model.art?.album).padding(48)
             }
             LockClock().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 70)
-            LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.leading, 32).padding(.top, 60)
+            if model.idleArt == nil {  // the shuffle shows only the animation and the clock
+                LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.leading, 32).padding(.top, 60)
+            }
             if let toast = model.toast {
                 Text(toast).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 8).background(Capsule().fill(.black.opacity(0.55)))

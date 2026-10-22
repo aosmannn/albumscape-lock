@@ -192,6 +192,7 @@ final class PlayerModel: ObservableObject {
         }
         guard let now else { return }
         Debug.log("track: \(now.key) (\(now.album))")
+        AlbumDB.shared.noteListened(now)
         async let clip: YouTubeVideo? = Self.videosAllowed ? youtube.video(for: now) : nil
         let spotifyCover = Self.largeCover(now.artworkURL)
         var art: AlbumArt?

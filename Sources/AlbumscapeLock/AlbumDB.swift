@@ -14,6 +14,7 @@ final class AlbumDB {
 
     private var links: [String: String] = [:]       // "artist|album" -> animated cover address
     private var noMotion: [String: Date] = [:]       // "artist|album" -> when it was found to have none
+    private var listened: [String: Date] = [:]       // "artist|album" -> when you last played it
     private static let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     private static let file = directory.appendingPathComponent("AlbumscapeLock/albums.json")
     private static let helperState = directory.appendingPathComponent("DroppyMotionFill/state.json")
@@ -22,12 +23,33 @@ final class AlbumDB {
         if let data = try? Data(contentsOf: Self.file), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             links = json["links"] as? [String: String] ?? [:]
             noMotion = (json["none"] as? [String: Double] ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
+            listened = (json["listened"] as? [String: Double] ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
         } else if let data = try? Data(contentsOf: Self.helperState),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let old = json["albumLinks"] as? [String: String] {
             links = old.filter { $0.value.hasPrefix("http") }
+            seedListenedFromHelper(json)
             save()
             Debug.log("album database: took over \(links.count) animated albums from the helper")
         }
+        if listened.isEmpty, let data = try? Data(contentsOf: Self.helperState), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            seedListenedFromHelper(json)
+            save()
+        }
+    }
+
+    /// The helper kept the songs and albums you played: those are what the idle shuffle is drawn from.
+    private func seedListenedFromHelper(_ json: [String: Any]) {
+        let now = Date()
+        for album in json["recentAlbums"] as? [String] ?? [] { listened[album.lowercased()] = now }
+        for entry in json["played"] as? [String] ?? [] {
+            let parts = entry.components(separatedBy: "|")
+            if parts.count >= 3 { listened["\(Self.mainArtist(parts[1]))|\(parts[2...].joined(separator: "|"))".lowercased()] = now }
+        }
+    }
+
+    func noteListened(_ track: Track) {
+        listened[Self.key(track)] = Date()
+        save()
     }
 
     static func key(_ track: Track) -> String { "\(mainArtist(track.artist))|\(track.album)".lowercased() }
@@ -53,7 +75,10 @@ final class AlbumDB {
 
     /// A random animated album from what's been saved, for the idle shuffle.
     func randomMotion(excluding last: URL?) -> (url: URL, album: String)? {
-        let pool = links.filter { $0.value.hasPrefix("http") && URL(string: $0.value) != last }
+        // Albums you've played (matched by album name, since Apple may list one under another artist); with none yet, all.
+        let heard = Set(listened.keys.map { $0.components(separatedBy: "|").dropFirst().joined(separator: "|") })
+        var pool = links.filter { $0.value.hasPrefix("http") && URL(string: $0.value) != last && heard.contains($0.key.components(separatedBy: "|").dropFirst().joined(separator: "|")) }
+        if pool.isEmpty { pool = links.filter { $0.value.hasPrefix("http") && URL(string: $0.value) != last } }
         guard let pick = pool.randomElement(), let url = URL(string: pick.value) else { return nil }
         return (url, pick.key.components(separatedBy: "|").dropFirst().joined(separator: "|"))
     }
@@ -66,7 +91,7 @@ final class AlbumDB {
 
     private func save() {
         try? FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let json: [String: Any] = ["links": links, "none": noMotion.mapValues { $0.timeIntervalSince1970 }]
+        let json: [String: Any] = ["links": links, "none": noMotion.mapValues { $0.timeIntervalSince1970 }, "listened": listened.mapValues { $0.timeIntervalSince1970 }]
         if let data = try? JSONSerialization.data(withJSONObject: json) { try? data.write(to: Self.file) }
     }
 }
