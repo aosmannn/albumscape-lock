@@ -92,7 +92,7 @@ final class Overlay {
             window.ignoresMouseEvents = onLockScreen == false
             let full = TapHostingView(rootView: FullScreenView(model: model))
             full.onBadgeClick = { [model] in model.toggleLyrics() }
-            full.onBackgroundClick = { [model] in if model.idleArt == nil { model.expanded = false } }  // the idle shuffle has no player to shrink to
+            full.onBackgroundClick = { [model] in if model.idleArt == nil { model.expanded = false } else { model.skipIdle() } }  // the idle shuffle has no player to shrink to: a click skips to the next cover
             window.contentView = full
             window.setFrame(screen.frame, display: true)
             window.orderFrontRegardless()
@@ -278,7 +278,7 @@ final class Overlay {
                     guard let self, self.model.expanded else { return }
                     let host = TapHostingView(rootView: FullScreenView(model: self.model))
                     host.onBadgeClick = { [model = self.model] in model.toggleLyrics() }
-                    host.onBackgroundClick = { [model = self.model] in if model.idleArt == nil { model.expanded = false } }
+                    host.onBackgroundClick = { [model = self.model] in if model.idleArt == nil { model.expanded = false } else { model.skipIdle() } }
                     window.isOpaque = true
                     window.backgroundColor = .black
                     window.contentView = host
@@ -365,10 +365,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
         Debug.log("launched, skylight available: \(LockSpace.isAvailable)")
-        keys = KeyWatcher { [weak self] in
-            guard let self, self.overlay.isShowing else { Debug.log("L ignored: the video isn't showing"); return }  // L only means something while the video is up
-            self.model.toggleLyrics()
-            Debug.log("lyrics \(self.model.lyricsOn ? "on" : "off")")
+        keys = KeyWatcher { [weak self] usage in
+            guard let self, self.overlay.isShowing else { return }  // keys only mean something while the video is up
+            if usage == 0x0F {
+                if self.model.idleArt == nil { self.model.toggleLyrics() }  // L: lyrics (not in the idle shuffle)
+            } else if self.model.idleArt != nil {
+                self.model.skipIdle()  // N or right arrow: the next animated cover
+            }
         }
         keys?.start()
         let center = DistributedNotificationCenter.default()
@@ -518,6 +521,9 @@ final class Delegate: NSObject, NSApplicationDelegate {
         videos.target = self
         videos.state = PlayerModel.videosAllowed ? .on : .off
         menu.addItem(videos)
+        let skip = NSMenuItem(title: "Next animated cover", action: #selector(skipCover), keyEquivalent: "")
+        skip.target = self
+        menu.addItem(skip)
         let shuffle = NSMenuItem(title: "Shuffle animated covers when nothing plays", action: #selector(toggleShuffle(_:)), keyEquivalent: "")
         shuffle.target = self
         shuffle.state = PlayerModel.idleShuffleOn ? .on : .off
@@ -559,6 +565,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
     @objc private func connectSpotify() { SpotifyAccount.shared.connect() }
     @objc private func disconnectSpotify() { SpotifyAccount.shared.disconnect() }
 
+    @objc private func skipCover() { model.skipIdle() }
     @objc private func toggleShuffle(_ sender: NSMenuItem) {
         let on = !PlayerModel.idleShuffleOn
         UserDefaults.standard.set(on, forKey: "idleShuffle")

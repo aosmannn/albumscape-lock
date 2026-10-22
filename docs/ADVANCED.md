@@ -55,6 +55,10 @@ Spotify needs an app of your own (free, 2 minutes):
 
 The app reads your Liked Songs once (and every 6 hours) and keeps the list on your Mac; clicking the heart sends one request. Your password never reaches the app, and the login is kept in your Keychain. No client secret is used.
 
+## Skipping animated covers (when nothing is playing)
+
+While the shuffle is on, **click anywhere** on the lock screen, press **N** or the **right arrow** (needs Input Monitoring, like the L key), or use **Next animated cover** in the menu bar icon.
+
 ## Settings (optional)
 
 The menu bar icon has a **Music videos** switch (off: animated covers only). In Terminal:

@@ -79,6 +79,14 @@ final class PlayerModel: ObservableObject {
     /// What the screen shows: the shuffled animation while idle, else the song's own art.
     var displayArt: AlbumArt? { idleArt ?? art }
 
+    /// The next animated cover in the idle shuffle, now.
+    func skipIdle() {
+        guard idleArt != nil else { return }
+        idleTask?.cancel()
+        idleTask = nil
+        updateIdle()
+    }
+
     private func updateIdle() {
         if track?.isPlaying == true || !Self.idleShuffleOn {
             idleSince = nil
