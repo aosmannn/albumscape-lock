@@ -16,6 +16,8 @@ struct YouTubeEmbed: NSViewRepresentable {
     /// resumes with it instead of showing YouTube's own pause symbol over the picture.
     var playing = true
     var position: () -> TimeInterval = { 0 }
+    /// Seconds left in the song, so the video knows whether to repeat a part of itself or fade away when it runs out.
+    var songRemaining: () -> TimeInterval = { 999 }
     var onReady: () -> Void = {}
     var onFailure: () -> Void = {}
 
@@ -33,6 +35,7 @@ struct YouTubeEmbed: NSViewRepresentable {
     func updateNSView(_ view: WKWebView, context: Context) {
         context.coordinator.onReady = onReady
         context.coordinator.onFailure = onFailure
+        if context.coordinator.loaded == video.id { view.evaluateJavaScript("songLeft(\(Int(songRemaining())))", completionHandler: nil) }
         if context.coordinator.loaded == video.id, context.coordinator.lastPlaying != playing {
             context.coordinator.lastPlaying = playing
             view.evaluateJavaScript("setPlaying(\(playing), \(max(0, position())))", completionHandler: nil)
@@ -95,14 +98,26 @@ struct YouTubeEmbed: NSViewRepresentable {
           cur=build('a',\(Int(start)),function(){if(!first){first=true;document.getElementById('a').classList.add('on');send('ready')}});
           setInterval(tick,300);
         }
+        var songLeftS=999,faded=false;
+        function songLeft(n){songLeftS=n}
         function tick(){
-          if(!cur||switching||!wantPlaying||!first)return;
-          try{var d=cur.getDuration(),t=cur.getCurrentTime();if(d>0&&d-t<5.5)handOver()}catch(x){}
+          if(!cur||switching||faded||!wantPlaying||!first)return;
+          try{
+            var d=cur.getDuration(),t=cur.getCurrentTime(),left=d-t;
+            if(d>0&&left<9){
+              // The video is about to run out (before YouTube draws its "up next" squares). If the song goes on for a while,
+              // carry on with a part of the video from a quarter of the way in; if it is nearly over, fade to the cover.
+              if(songLeftS>left+8)handOver(d*0.25);else fadeAway();
+            }
+          }catch(x){}
         }
-        function handOver(){
+        function fadeAway(){
+          faded=true;document.body.style.transition='opacity 1.6s ease';document.body.style.opacity=0;
+        }
+        function handOver(from){
           switching=true;
           var next=slot==='a'?'b':'a',old=cur,oldSlot=slot,live=false,np=null;
-          np=build(next,0,function(){
+          np=build(next,from,function(){
             if(live)return;live=true;
             setTimeout(function(){  // once YouTube's own start-of-video overlay has passed
               document.getElementById(next).classList.add('on');document.getElementById(oldSlot).classList.remove('on');
@@ -121,7 +136,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             pauseTimer=setTimeout(function(){try{cur.pauseVideo()}catch(x){}},320);
           }else{
             try{cur.seekTo(seek,true);cur.playVideo()}catch(x){}
-            showTimer=setTimeout(function(){document.body.style.opacity=1},1200);
+            if(!faded)showTimer=setTimeout(function(){document.body.style.opacity=1},1200);
           }
         }
         </script></body></html>

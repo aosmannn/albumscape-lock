@@ -203,6 +203,7 @@ struct MediaLayer: View {
             let embed = YouTubeEmbed(video: v, startAt: model.track?.position ?? 0,
                                      playing: model.track?.isPlaying == true,
                                      position: { [model] in model.position(at: Date()) + v.offset },
+                                     songRemaining: { [model] in max(0, (model.track?.duration ?? 0) - model.position(at: Date())) },
                                      onReady: { Debug.log("yt ready"); ready = source.key },
                                      onFailure: { Debug.log("yt FAILED"); failed.insert(source.key) })
             if let side = thumbnailSide {
