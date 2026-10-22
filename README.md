@@ -17,9 +17,10 @@ That's it. Play a song and lock your Mac.
 
 ## Use it
 
-- **Click the picture** to make it small (a player with play, next, back and volume output). Click again to go full screen.
-- **Menu bar icon → Music videos:** turn it off to show only the album's animated cover (no music videos).
-- **Open at login:** in the same menu.
+- **Click the picture** to make it small (a player with play, next, back and sound output). Click again to go full screen.
+- **Nothing playing?** Your lock screen and desktop shuffle through the animated covers of albums you've played. **Click** (or press N) to skip one.
+- **Menu bar icon:** turn **Music videos** off to see only animated covers, turn the shuffle off, or **Open at login**.
+- Press **L** on the lock screen for synced lyrics (see the advanced page for the one permission it needs).
 
 Needs macOS 14 or newer. It isn't on the App Store, so a Mac update can sometimes break it.
 

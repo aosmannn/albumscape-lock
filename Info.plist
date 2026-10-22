@@ -5,7 +5,7 @@
 <key>CFBundleName</key><string>Albumscape Lock</string>
 <key>CFBundleExecutable</key><string>AlbumscapeLock</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
 <key>LSUIElement</key><true/>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSAppleEventsUsageDescription</key><string>Albumscape Lock reads what Spotify and Music are playing so it can show the matching video on your lock screen.</string>
