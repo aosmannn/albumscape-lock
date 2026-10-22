@@ -429,7 +429,14 @@ final class Delegate: NSObject, NSApplicationDelegate {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
             }
         }
-        guard Wallpaper.enabled else { return }
+        guard Wallpaper.enabled else {
+            // Not changing the wallpaper: but if an earlier version left a cover on it, put your own back, once.
+            if wallpaperShown != "own" {
+                wallpaperShown = "own"
+                if let current = NSScreen.main.flatMap({ NSWorkspace.shared.desktopImageURL(for: $0) }), current.path.hasPrefix(Wallpaper.directory.path) { Wallpaper.restore() }
+            }
+            return
+        }
         var wanted = "own"
         if locked, animated == nil, let cover = model.art?.coverURL { wanted = cover.absoluteString }
         guard wanted != wallpaperShown else { return }

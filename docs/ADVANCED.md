@@ -62,7 +62,7 @@ The menu bar icon has a **Music videos** switch (off: animated covers only). In 
 ```bash
 defaults write com.adam.albumscape-lock musicVideos -bool false         # same as the menu switch
 defaults write com.adam.albumscape-lock animatedWallpaper -bool false   # no animation behind the desktop icons
-defaults write com.adam.albumscape-lock coverWallpaper -bool false      # don't touch the wallpaper
+defaults write com.adam.albumscape-lock coverWallpaper -bool true       # put the still cover on the lock screen wallpaper (off by default)
 defaults write com.adam.albumscape-lock glassMode -string swiftui       # liquid (default), swiftui or appkit
 ```
 

@@ -15,9 +15,11 @@ enum Wallpaper {
     }()
     private static var originalFile: URL { directory.appendingPathComponent("original-wallpaper.txt") }
 
+    /// Off unless asked for: `defaults write com.adam.albumscape-lock coverWallpaper -bool true` puts the still cover on
+    /// the lock screen's wallpaper for songs with no animation. By default your own wallpaper is never touched.
     static var enabled: Bool {
         let suite = UserDefaults(suiteName: "com.adam.albumscape-lock")?.object(forKey: "coverWallpaper") as? Bool
-        return (suite ?? UserDefaults.standard.object(forKey: "coverWallpaper") as? Bool) != false
+        return (suite ?? UserDefaults.standard.object(forKey: "coverWallpaper") as? Bool) == true
     }
 
     /// Puts `cover` on every screen. The picture is made once per cover and screen shape, then reused.
