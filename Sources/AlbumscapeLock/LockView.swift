@@ -185,7 +185,11 @@ struct MediaLayer: View {
     /// that size and shrunk to fit.
     var thumbnailSide: CGFloat?
     @State private var failed: Set<String> = []
-    @State private var ready: String?
+    /// Each source reports when it has a first frame; the first one (in order) that has is shown. The one that was on
+    /// screen stays underneath until the next is ready and has faded in, so skipping to another cover never goes black.
+    @State private var readyKeys: Set<String> = []
+    @State private var hold: Source?
+    @State private var fading: Source?
 
     private enum Source: Equatable {
         case youtube(YouTubeVideo), file(URL)
@@ -203,20 +207,45 @@ struct MediaLayer: View {
             .compactMap { $0 }.filter { !failed.contains($0.key) }
     }
 
+    private var shownKey: String? { sources.first { readyKeys.contains($0.key) }?.key }
+
+    /// What is drawn: the current sources, plus the previous picture while it is still needed underneath.
+    private var rendered: [Source] {
+        var list: [Source] = []
+        for old in [fading, hold] {
+            if let old, !sources.contains(old), !list.contains(old) { list.append(old) }
+        }
+        return list + sources
+    }
+
+    private func visible(_ source: Source) -> Bool {
+        if isYouTube(source), model.track?.isPlaying != true { return false }  // YouTube's own pause symbol never shows
+        if source.key == shownKey { return true }
+        if shownKey == nil, source == hold { return true }  // the new one isn't ready: the old one stays
+        return source == fading
+    }
+
     var body: some View {
         ZStack {
             if let cover = model.displayArt?.coverURL {
                 AsyncImage(url: cover) { $0.resizable().aspectRatio(contentMode: .fill).frame(maxWidth: .infinity, maxHeight: .infinity).clipped() } placeholder: { Color.clear }
             }
-            ForEach(sources, id: \.key) { source in
-                let shown = sources.first { $0.key == ready } ?? sources.first
+            ForEach(rendered, id: \.key) { source in
                 player(source)
-                    // YouTube's own pause symbol and "up next" panel never show: paused, the cover is what you see
-                    .opacity(source == shown && ready == source.key && (isYouTube(source) == false || model.track?.isPlaying == true) ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.6), value: ready)
+                    .opacity(visible(source) ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.6), value: visible(source))
             }
         }
         .clipped()
+        .onChange(of: shownKey) { newKey in
+            guard let newKey, let new = sources.first(where: { $0.key == newKey }) else { return }
+            if let old = hold, old.key != newKey {
+                fading = old
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { if fading == old { fading = nil } }
+            }
+            hold = new
+        }
+        .onChange(of: rendered.map(\.key)) { keys in readyKeys = readyKeys.intersection(keys) }
     }
 
     private func isYouTube(_ source: Source) -> Bool { if case .youtube = source { return true } else { return false } }
@@ -228,7 +257,7 @@ struct MediaLayer: View {
                                      playing: model.track?.isPlaying == true,
                                      position: { [model] in model.position(at: Date()) + v.offset },
                                      songRemaining: { [model] in max(0, (model.track?.duration ?? 0) - model.position(at: Date())) },
-                                     onReady: { Debug.log("yt ready"); ready = source.key },
+                                     onReady: { Debug.log("yt ready"); readyKeys.insert(source.key) },
                                      onFailure: { Debug.log("yt FAILED"); failed.insert(source.key) })
             if let side = thumbnailSide {
                 let layout: CGFloat = 320
@@ -238,7 +267,7 @@ struct MediaLayer: View {
             }
         case .file(let url):
             LoopingVideo(url: url,
-                         onReady: { Debug.log("file ready"); if ready == nil { ready = source.key } },
+                         onReady: { Debug.log("file ready"); readyKeys.insert(source.key) },
                          onFailure: { Debug.log("file FAILED"); failed.insert(source.key) })
         }
     }
