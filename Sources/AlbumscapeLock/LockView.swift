@@ -29,7 +29,7 @@ struct InfoOverlayView: View {
             LinearGradient(colors: [.clear, .black.opacity(model.lyricsOn && !model.lyrics.isEmpty ? 0.85 : 0.7)], startPoint: .center, endPoint: .bottom)
             if model.lyricsOn, !model.lyrics.isEmpty { LyricsView(model: model, accent: accent) }
             TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                SongInfo(track: model.track, position: model.position(at: context.date), accent: accent, album: model.art?.album).padding(48)
+                SongInfo(track: model.idleArt == nil ? model.track : nil, position: model.position(at: context.date), accent: accent, album: model.art?.album).padding(48)
             }
             LockClock().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 70)
             LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
@@ -197,13 +197,13 @@ struct MediaLayer: View {
         // the video only plays while the song does, and is zoomed in so its edges, where those sit, fall outside.
         let showVideo = thumbnailSide == nil || model.track?.isPlaying == true
         let videos = PlayerModel.videosAllowed  // off: only the animated cover or the still cover
-        return [showVideo && videos ? model.video.map(Source.youtube) : nil, model.art?.motionURL.map(Source.file), videos ? model.art?.videoURL.map(Source.file) : nil]
+        return [showVideo && videos && model.idleArt == nil ? model.video.map(Source.youtube) : nil, model.displayArt?.motionURL.map(Source.file), videos && model.idleArt == nil ? model.art?.videoURL.map(Source.file) : nil]
             .compactMap { $0 }.filter { !failed.contains($0.key) }
     }
 
     var body: some View {
         ZStack {
-            if let cover = model.art?.coverURL {
+            if let cover = model.displayArt?.coverURL {
                 AsyncImage(url: cover) { $0.resizable().aspectRatio(contentMode: .fill).frame(maxWidth: .infinity, maxHeight: .infinity).clipped() } placeholder: { Color.clear }
             }
             ForEach(sources, id: \.key) { source in

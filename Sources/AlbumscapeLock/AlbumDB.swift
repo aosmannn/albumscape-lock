@@ -51,6 +51,13 @@ final class AlbumDB {
         return .unknown
     }
 
+    /// A random animated album from what's been saved, for the idle shuffle.
+    func randomMotion(excluding last: URL?) -> (url: URL, album: String)? {
+        let pool = links.filter { $0.value.hasPrefix("http") && URL(string: $0.value) != last }
+        guard let pick = pool.randomElement(), let url = URL(string: pick.value) else { return nil }
+        return (url, pick.key.components(separatedBy: "|").dropFirst().joined(separator: "|"))
+    }
+
     func remember(_ track: Track, motion: URL?) {
         let key = Self.key(track)
         if let motion { links[key] = motion.absoluteString; noMotion[key] = nil } else { noMotion[key] = Date() }

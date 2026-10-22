@@ -71,6 +71,38 @@ final class PlayerModel: ObservableObject {
     private let youtube = YouTubeFinder()
     private let lyricsFinder = LyricsFinder()
 
+    // Nothing playing: shuffle through the albums that have animated covers (desktop and lock screen).
+    @Published private(set) var idleArt: AlbumArt?
+    private var idleSince: Date?
+    private var idleTask: Task<Void, Never>?
+    static var idleShuffleOn: Bool { UserDefaults.standard.object(forKey: "idleShuffle") as? Bool != false }
+    /// What the screen shows: the shuffled animation while idle, else the song's own art.
+    var displayArt: AlbumArt? { idleArt ?? art }
+
+    private func updateIdle() {
+        if track?.isPlaying == true || !Self.idleShuffleOn {
+            idleSince = nil
+            idleTask?.cancel(); idleTask = nil
+            if idleArt != nil { idleArt = nil }
+            return
+        }
+        if idleSince == nil { idleSince = Date() }
+        guard idleTask == nil, let since = idleSince, Date().timeIntervalSince(since) >= 8 else { return }  // paused for a moment isn't idle
+        idleTask = Task { [weak self] in
+            var last: URL?
+            while !Task.isCancelled {
+                guard let self else { return }
+                guard let pick = AlbumDB.shared.randomMotion(excluding: last) else { self.idleTask = nil; return }
+                var shown = AlbumArt(album: pick.album)
+                shown.motionURL = pick.url
+                self.idleArt = shown
+                last = pick.url
+                Debug.log("idle shuffle: \(pick.album)")
+                try? await Task.sleep(for: .seconds(75))
+            }
+        }
+    }
+
     /// Menu bar > Music videos. Off: only the album's animated cover (or the still cover), never a video.
     static var videosAllowed: Bool { UserDefaults.standard.object(forKey: "musicVideos") as? Bool != false }
     private var poll: Task<Void, Never>?
@@ -144,6 +176,7 @@ final class PlayerModel: ObservableObject {
             }
         }
         if now != track { track = now }
+        updateIdle()
         guard changedSong else { return }
         art = nil
         video = nil

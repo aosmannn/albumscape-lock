@@ -413,6 +413,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
         if !now && !locked { LockSpace.refreshBaseline() }
         if now && !locked { didLock() }
         else if !now && locked && Date().timeIntervalSince(lockedAt) > 3 { didUnlock() }  // the flag lags the notification
+        if locked { follow() }  // the idle shuffle can start or end while the screen is locked
     }
 
     private var reasserter: Timer?
@@ -423,7 +424,9 @@ final class Delegate: NSObject, NSApplicationDelegate {
         let animated = model.art?.motionURL
         if AnimatedWallpaper.enabled {
             let wall = AnimatedWallpaper.shared
-            if let animated {
+            if let idle = model.idleArt?.motionURL {  // nothing playing: the shuffle
+                if !locked, CGDisplayIsAsleep(CGMainDisplayID()) == 0 { wall.show(idle.absoluteString) } else { wall.pause() }
+            } else if let animated {
                 if model.track?.isPlaying == true, !locked, CGDisplayIsAsleep(CGMainDisplayID()) == 0 { wall.show(animated.absoluteString) } else { wall.pause() }
             } else {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
@@ -478,14 +481,14 @@ final class Delegate: NSObject, NSApplicationDelegate {
     /// normal lock screen comes back when you're done listening.
     private func follow() {
         guard locked, enabled, !dismissed else { return }
-        if model.track?.isPlaying == true {
+        if model.track?.isPlaying == true || model.idleArt != nil {
             pausedSince = nil
             if !overlay.isShowing { overlay.show(onLockScreen: true) }
         } else if overlay.isShowing {
             let since = pausedSince ?? Date()
             pausedSince = since
             DispatchQueue.main.asyncAfter(deadline: .now() + 61) { [weak self] in
-                guard let self, self.locked, self.pausedSince == since, self.model.track?.isPlaying != true else { return }
+                guard let self, self.locked, self.pausedSince == since, self.model.track?.isPlaying != true, self.model.idleArt == nil else { return }
                 self.overlay.hide(keepPolling: true)
                 self.pausedSince = nil
             }
@@ -515,6 +518,10 @@ final class Delegate: NSObject, NSApplicationDelegate {
         videos.target = self
         videos.state = PlayerModel.videosAllowed ? .on : .off
         menu.addItem(videos)
+        let shuffle = NSMenuItem(title: "Shuffle animated covers when nothing plays", action: #selector(toggleShuffle(_:)), keyEquivalent: "")
+        shuffle.target = self
+        shuffle.state = PlayerModel.idleShuffleOn ? .on : .off
+        menu.addItem(shuffle)
         let login = NSMenuItem(title: "Open at login", action: #selector(toggleLogin(_:)), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -552,6 +559,11 @@ final class Delegate: NSObject, NSApplicationDelegate {
     @objc private func connectSpotify() { SpotifyAccount.shared.connect() }
     @objc private func disconnectSpotify() { SpotifyAccount.shared.disconnect() }
 
+    @objc private func toggleShuffle(_ sender: NSMenuItem) {
+        let on = !PlayerModel.idleShuffleOn
+        UserDefaults.standard.set(on, forKey: "idleShuffle")
+        sender.state = on ? .on : .off
+    }
     @objc private func toggleVideos(_ sender: NSMenuItem) {
         let on = !PlayerModel.videosAllowed
         UserDefaults.standard.set(on, forKey: "musicVideos")
