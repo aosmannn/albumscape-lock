@@ -20,6 +20,7 @@ struct YouTubeEmbed: NSViewRepresentable {
     var songRemaining: () -> TimeInterval = { 999 }
     var onReady: () -> Void = {}
     var onFailure: () -> Void = {}
+    var onHide: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -35,6 +36,7 @@ struct YouTubeEmbed: NSViewRepresentable {
     func updateNSView(_ view: WKWebView, context: Context) {
         context.coordinator.onReady = onReady
         context.coordinator.onFailure = onFailure
+        context.coordinator.onHide = onHide
         if context.coordinator.loaded == video.id { view.evaluateJavaScript("songLeft(\(Int(songRemaining())))", completionHandler: nil) }
         if context.coordinator.loaded == video.id, context.coordinator.lastPlaying != playing {
             context.coordinator.lastPlaying = playing
@@ -57,10 +59,12 @@ struct YouTubeEmbed: NSViewRepresentable {
         var lastPlaying = true
         var onReady: () -> Void = {}
         var onFailure: () -> Void = {}
+        var onHide: () -> Void = {}
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             switch message.body as? String {
             case "ready": DispatchQueue.main.async { self.onReady() }
+            case "hide": DispatchQueue.main.async { self.onHide() }
             case "error": DispatchQueue.main.async { self.onFailure() }
             default: break
             }
@@ -82,6 +86,7 @@ struct YouTubeEmbed: NSViewRepresentable {
         var t=document.createElement('script');t.src='https://www.youtube.com/iframe_api';document.head.appendChild(t);
         function send(m){window.webkit.messageHandlers.yt.postMessage(m)}
         function noCaptions(p){try{p.unloadModule('captions');p.unloadModule('cc');p.setOption('captions','track',{})}catch(x){}}
+        var liveTimer=null;
         var cur=null,slot='a',switching=false,wantPlaying=true,first=false;
         function build(which,from,onPlaying){
           document.getElementById(which).innerHTML='<div id="p'+which+'"></div>';
@@ -90,12 +95,18 @@ struct YouTubeEmbed: NSViewRepresentable {
             events:{onReady:function(e){e.target.mute();e.target.playVideo();noCaptions(e.target)},
               onStateChange:function(e){
                 if(e.data===1){noCaptions(e.target);if(onPlaying)onPlaying(e.target)}
+                else if(e.target===cur&&!switching&&e.data!==-1){clearTimeout(liveTimer);send('hide')}  // loading, paused, ended: back to the cover
                 if(e.data===0){e.target.seekTo(0);e.target.playVideo()}  // only if the hand-over was too late
               },
               onError:function(){send('error')}}});
         }
         function onYouTubeIframeAPIReady(){
-          cur=build('a',\(Int(start)),function(){if(!first){first=true;document.getElementById('a').classList.add('on');send('ready')}});
+          cur=build('a',\(Int(start)),function(){
+            if(!first){first=true;document.getElementById('a').classList.add('on')}
+            // YouTube draws its own title, spinner and pause screen whenever the video starts or loads (about 4 s). The
+            // cover (or the animated cover) stays on screen until the video has been playing steadily, as on Windows.
+            clearTimeout(liveTimer);liveTimer=setTimeout(function(){if(cur&&!switching)send('ready')},4500);
+          });
           setInterval(tick,300);
         }
         var songLeftS=999,faded=false;
@@ -104,7 +115,7 @@ struct YouTubeEmbed: NSViewRepresentable {
           if(!cur||switching||faded||!wantPlaying||!first)return;
           try{
             var d=cur.getDuration(),t=cur.getCurrentTime(),left=d-t;
-            if(d>0&&left<9){
+            if(d>0&&left<11){
               // The video is about to run out (before YouTube draws its "up next" squares). If the song goes on for a while,
               // carry on with a part of the video from a quarter of the way in; if it is nearly over, fade to the cover.
               if(songLeftS>left+8)handOver(d*0.25);else fadeAway();
@@ -122,7 +133,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             setTimeout(function(){  // once YouTube's own start-of-video overlay has passed
               document.getElementById(next).classList.add('on');document.getElementById(oldSlot).classList.remove('on');
               setTimeout(function(){try{old.destroy()}catch(x){}cur=np;slot=next;switching=false},1000);
-            },900);
+            },4600);
           });
         }
         var pauseTimer=null,showTimer=null;

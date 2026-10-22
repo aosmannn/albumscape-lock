@@ -1,29 +1,56 @@
-# Albumscape Lock
+<p align="center"><img src="media/logo-animated.svg" alt="Albumscape Lock" width="120"></p>
 
-**Your music, full screen on your Mac's lock screen.**
-Play a song in Spotify or Apple Music, lock your Mac, and see the album's animated cover, or the music video, with the time and lyrics on top.
+<h1 align="center">Albumscape Lock</h1>
 
-## Get it
+<p align="center"><b>Your music, full screen on your Mac's lock screen.</b><br>
+Whatever you're playing fills your lock screen: the album's animated cover, the music video, lyrics, the time.</p>
 
-1. Download **AlbumscapeLock-mac.zip** from the [latest release](../../releases/latest) and unzip it.
-2. Drag **AlbumscapeLock.app** into your **Applications** folder.
-3. Open **Terminal**, paste this, and press Return (it lets your Mac open the app, once):
-   ```
-   xattr -dr com.apple.quarantine /Applications/AlbumscapeLock.app
-   ```
-4. Open **AlbumscapeLock**. A small icon appears in your menu bar. Click **Allow** if your Mac asks about Spotify or Music.
+<p align="center">
+  <a href="https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.zip"><b>⬇ &nbsp;Download for Mac</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/aosmannn/albumscape">Albumscape for Windows</a>
+</p>
+<p align="center"><sub>Free · macOS 14 or newer · no account · works with Spotify and Apple Music</sub></p>
 
-That's it. Play a song and lock your Mac.
+---
 
-## Use it
+## Get started in 3 steps
 
-- **Click the picture** to make it small (a player with play, next, back and sound output). Click again to go full screen.
-- **Nothing playing?** Your lock screen and desktop shuffle through the animated covers of albums you've played. **Click** (or press N) to skip one.
-- **Menu bar icon:** turn **Music videos** off to see only animated covers, turn the shuffle off, or **Open at login**.
-- Press **L** on the lock screen for synced lyrics (see the advanced page for the one permission it needs).
+**1. Download it.** Click **[Download for Mac](https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.zip)** and unzip the file. Drag **AlbumscapeLock** into your **Applications** folder.
 
-Needs macOS 14 or newer. It isn't on the App Store, so a Mac update can sometimes break it.
+**2. Allow it to open.** The app isn't signed by Apple yet, so your Mac blocks the first launch. Open **Terminal**, paste this, and press Return (you only do this once):
 
-More options (Spotify hearts, lyrics key, wallpaper): [advanced setup](docs/ADVANCED.md).
+```
+xattr -dr com.apple.quarantine /Applications/AlbumscapeLock.app
+```
 
-MIT license.
+**3. Open it.** A small icon appears in your menu bar. Click **Allow** if your Mac asks about Spotify or Music.
+
+That's it. **Play a song** and lock your Mac.
+
+---
+
+## What it does
+
+- **Animated album art.** Albums with moving covers on Apple Music play them full screen.
+- **Music videos.** The song's music video plays in step with the song, with the animated cover or the cover underneath until it's ready. Turn videos off in the menu bar to see only animated covers.
+- **Lyrics** that fill in word by word, and a progress bar in the album's own colour.
+- **A Liquid Glass player.** Click the picture to shrink it to a small player: play, next, back, a heart for your liked songs (with Spotify connected), and a sound-output picker.
+- **Nothing playing?** Your lock screen and desktop shuffle through the animated covers of albums you've played. Click to skip one.
+- **Optional extras:** the animated cover behind your desktop icons.
+
+## Controls
+
+- **Click** the picture to shrink or enlarge it.
+- **L** turns lyrics on or off, **N** or **→** skips a cover in the shuffle (these two keys need one permission: [advanced setup](docs/ADVANCED.md)).
+- **Menu bar icon:** music videos on/off, shuffle on/off, open at login.
+
+## Good to know
+
+- It draws over the lock screen with private macOS calls and reads Apple Music's public pages for the animations, so a Mac update can break it. It isn't on the App Store.
+- The heart needs a free Spotify app of your own. Setup is in [the advanced page](docs/ADVANCED.md).
+- Build it yourself: install Xcode, then `./build-app.sh`.
+
+## Credits
+
+Made by [@aosmannn](https://github.com/aosmannn). Lyrics from [LRCLIB](https://lrclib.net). The Liquid Glass drawing is a Swift port of [ybouane/liquidglass](https://github.com/ybouane/liquidglass). Covers and animations come from Apple Music's public pages. MIT license.

@@ -158,7 +158,7 @@ final class PlayerModel: ObservableObject {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.tick()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .milliseconds(600))
             }
         }
     }
@@ -199,10 +199,25 @@ final class PlayerModel: ObservableObject {
             }
         }
         guard let now else { return }
+        // The lookups run on their own, so the next skip is noticed at once instead of waiting for them; a newer song
+        // cancels the older song's work.
+        songTask?.cancel()
+        songTask = Task { [weak self] in await self?.loadSong(now) }
+    }
+
+    private var songTask: Task<Void, Never>?
+
+    private func loadSong(_ now: Track) async {
         Debug.log("track: \(now.key) (\(now.album))")
         AlbumDB.shared.noteListened(now)
-        async let clip: YouTubeVideo? = Self.videosAllowed ? youtube.video(for: now) : nil
-        let spotifyCover = Self.largeCover(now.artworkURL)
+        // The video lookup waits a moment first, so skipping through several songs only looks up the one you land on.
+        let clipTask = Task<YouTubeVideo?, Never> { [youtube] in
+            try? await Task.sleep(for: .milliseconds(450))
+            if Task.isCancelled || !Self.videosAllowed { return nil }
+            return await youtube.video(for: now)
+        }
+        defer { clipTask.cancel() }
+        let spotifyCover = Self.quickCover(now.artworkURL)
         var art: AlbumArt?
         var incomplete = false
         // A known album starts at once from what was saved; only a new one is looked up.
@@ -220,9 +235,12 @@ final class PlayerModel: ObservableObject {
                 var quick = AlbumArt(album: now.album); quick.coverURL = cover
                 if track?.key == now.key { self.art = quick }
             }
+            try? await Task.sleep(for: .milliseconds(300))  // skipping fast: only the song you land on is looked up
+            if Task.isCancelled { return }
             // the song you're listening to goes to the front of Apple's queue, not behind background work
             let found = await LookupLane.$foreground.withValue(true) { await self.lookup.art(for: now) }
             art = found
+            if Task.isCancelled { return }
             incomplete = found?.complete == false
             if art?.coverURL == nil, let cover = spotifyCover {
                 var fallback = art ?? AlbumArt(album: now.album)  // Spotify's own cover, when the album lookup finds nothing
@@ -244,7 +262,8 @@ final class PlayerModel: ObservableObject {
         }
         Debug.log("art: cover=\(art?.coverURL != nil) motion=\(art?.motionURL != nil)")
         if incomplete { retryLookup(now) }
-        let clipFound = await clip
+        let clipFound = await clipTask.value
+        if Task.isCancelled { return }
         if track?.key == now.key { video = clipFound }
         Debug.log("youtube: \(clipFound?.id ?? "none")")
     }
@@ -277,6 +296,12 @@ final class PlayerModel: ObservableObject {
                 return
             }
         }
+    }
+
+    /// The 640-pixel cover (about 60 KB): it is on screen almost at once; the full-size one is far larger.
+    static func quickCover(_ address: String) -> URL? {
+        guard !address.isEmpty else { return nil }
+        return URL(string: address.replacingOccurrences(of: "ab67616d00001e02", with: "ab67616d0000b273"))
     }
 
     /// Spotify's cover address names a size; ab67616d000082c1 is the largest, so a still fills the screen sharply.

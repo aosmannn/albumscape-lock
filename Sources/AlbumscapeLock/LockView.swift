@@ -221,7 +221,7 @@ struct MediaLayer: View {
     private func visible(_ source: Source) -> Bool {
         if isYouTube(source), model.track?.isPlaying != true { return false }  // YouTube's own pause symbol never shows
         if source.key == shownKey { return true }
-        if shownKey == nil, source == hold { return true }  // the new one isn't ready: the old one stays
+        if shownKey == nil, source == hold, model.idleArt != nil { return true }  // shuffling: the old cover stays until the next is ready (a song change shows its own cover at once)
         return source == fading
     }
 
@@ -258,7 +258,8 @@ struct MediaLayer: View {
                                      position: { [model] in model.position(at: Date()) + v.offset },
                                      songRemaining: { [model] in max(0, (model.track?.duration ?? 0) - model.position(at: Date())) },
                                      onReady: { Debug.log("yt ready"); readyKeys.insert(source.key) },
-                                     onFailure: { Debug.log("yt FAILED"); failed.insert(source.key) })
+                                     onFailure: { Debug.log("yt FAILED"); failed.insert(source.key) },
+                                     onHide: { readyKeys.remove(source.key) })
             if let side = thumbnailSide {
                 let layout: CGFloat = 320
                 embed.frame(width: layout, height: layout).scaleEffect(side / layout * 1.75).frame(width: side, height: side).clipped()
