@@ -81,6 +81,7 @@ final class PlayerModel: ObservableObject {
         guard t.isPlaying else { return anchorPosition }
         return min(t.duration > 0 ? t.duration : .infinity, anchorPosition + date.timeIntervalSince(anchorDate))
     }
+    private var wantedPlaying: (value: Bool, until: Date)?
     private var anchorPosition: TimeInterval = 0
     private var anchorDate = Date()
 
@@ -89,6 +90,9 @@ final class PlayerModel: ObservableObject {
         if var t = track {  // the symbol flips now, and the clock holds or runs on
             anchorPosition = position(at: Date()); anchorDate = Date()
             t.isPlaying.toggle(); sampledAt = Date(); track = t
+            // The player takes a moment to change; until it agrees (or 1.5 s pass) a read that still says the old
+            // state must not flip the symbol back, which made pause and play look like they happened twice.
+            wantedPlaying = (t.isPlaying, Date().addingTimeInterval(1.5))
         }
         reader.command("playpause", source: track?.source ?? "")
         refreshSoon([0.25, 0.9])
@@ -122,7 +126,11 @@ final class PlayerModel: ObservableObject {
     }
 
     private func tick() async {
-        let now = await reader.read()
+        var now = await reader.read()
+        if let wanted = wantedPlaying {
+            if now?.isPlaying == wanted.value || Date() > wanted.until { wantedPlaying = nil }
+            else if now != nil { now?.isPlaying = wanted.value }
+        }
         let changedSong = now?.key != track?.key
         sampledAt = Date()
         if let n = now {

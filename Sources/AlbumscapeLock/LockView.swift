@@ -264,6 +264,8 @@ struct MiniPlayer: View {
     var nativeGlass = false
     /// The picture behind the card (the wallpaper), when we draw the glass ourselves.
     var backdrop: GlassBackdrop?
+    @State private var showOutputs = false
+    @State private var outputs: [OutputDevice] = []
 
     static let size = CGSize(width: 410, height: 160)
 
@@ -322,7 +324,13 @@ struct MiniPlayer: View {
                             .foregroundStyle(model.liked ? accent : .white).opacity(model.liked ? 1 : 0.85)
                     }.buttonStyle(.plain)
                     Spacer()
-                    Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(0.85)
+                    Button {
+                        outputs = AudioOutputs.list()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) { showOutputs.toggle() }
+                    } label: {
+                        Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
+                            .frame(width: 32, height: 30).contentShape(Rectangle())
+                    }.buttonStyle(PressStyle())
                 }
             }
             .frame(height: 30)
@@ -333,6 +341,34 @@ struct MiniPlayer: View {
         .frame(width: Self.size.width, height: Self.size.height)
         .modifier(GlassBackground(enabled: nativeGlass == false))
         .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: Self.size) } }
+        .overlay(alignment: .bottom) {
+            if showOutputs {
+                VStack(spacing: 2) {
+                    Text("Play on").font(.system(size: 11, weight: .semibold)).opacity(0.7).frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 2)
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 2) {
+                            ForEach(outputs) { device in
+                                Button {
+                                    if AudioOutputs.select(device.id) { outputs = AudioOutputs.list() }
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) { showOutputs = false }
+                                } label: {
+                                    HStack {
+                                        Text(device.name).font(.system(size: 13, weight: device.isCurrent ? .semibold : .regular)).lineLimit(1)
+                                        Spacer()
+                                        if device.isCurrent { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(accent) }
+                                    }
+                                    .padding(.horizontal, 10).padding(.vertical, 5).contentShape(Rectangle())
+                                }.buttonStyle(PressStyle())
+                            }
+                        }
+                    }
+                }
+                .padding(10).frame(width: Self.size.width - 28, height: 104)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.black.opacity(0.62)))
+                .padding(.bottom, 8)
+                .transition(.scale(scale: 0.92, anchor: .bottom).combined(with: .opacity))
+            }
+        }
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 Text(toast).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
