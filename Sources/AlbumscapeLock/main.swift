@@ -504,6 +504,10 @@ final class Delegate: NSObject, NSApplicationDelegate {
         let test = NSMenuItem(title: "Preview for 20 seconds", action: #selector(previewAction), keyEquivalent: "")
         test.target = self
         menu.addItem(test)
+        let videos = NSMenuItem(title: "Music videos (off: animated covers only)", action: #selector(toggleVideos(_:)), keyEquivalent: "")
+        videos.target = self
+        videos.state = PlayerModel.videosAllowed ? .on : .off
+        menu.addItem(videos)
         let login = NSMenuItem(title: "Open at login", action: #selector(toggleLogin(_:)), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -540,6 +544,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
     }
     @objc private func connectSpotify() { SpotifyAccount.shared.connect() }
     @objc private func disconnectSpotify() { SpotifyAccount.shared.disconnect() }
+
+    @objc private func toggleVideos(_ sender: NSMenuItem) {
+        let on = !PlayerModel.videosAllowed
+        UserDefaults.standard.set(on, forKey: "musicVideos")
+        sender.state = on ? .on : .off
+        model.videoSettingChanged()
+    }
 
     @objc private func toggleEnabled(_ sender: NSMenuItem) {
         enabled.toggle()

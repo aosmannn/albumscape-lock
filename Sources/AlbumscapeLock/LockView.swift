@@ -175,7 +175,8 @@ struct MediaLayer: View {
         // In the small square YouTube's own buttons and titles would show (and its pause symbol while paused), so there
         // the video only plays while the song does, and is zoomed in so its edges, where those sit, fall outside.
         let showVideo = thumbnailSide == nil || model.track?.isPlaying == true
-        return [showVideo ? model.video.map(Source.youtube) : nil, model.art?.motionURL.map(Source.file), model.art?.videoURL.map(Source.file)]
+        let videos = PlayerModel.videosAllowed  // off: only the animated cover or the still cover
+        return [showVideo && videos ? model.video.map(Source.youtube) : nil, model.art?.motionURL.map(Source.file), videos ? model.art?.videoURL.map(Source.file) : nil]
             .compactMap { $0 }.filter { !failed.contains($0.key) }
     }
 

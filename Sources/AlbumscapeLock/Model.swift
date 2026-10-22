@@ -70,6 +70,9 @@ final class PlayerModel: ObservableObject {
     private let lookup = AlbumLookup()
     private let youtube = YouTubeFinder()
     private let lyricsFinder = LyricsFinder()
+
+    /// Menu bar > Music videos. Off: only the album's animated cover (or the still cover), never a video.
+    static var videosAllowed: Bool { UserDefaults.standard.object(forKey: "musicVideos") as? Bool != false }
     private var poll: Task<Void, Never>?
     private var connectedWatch: AnyCancellable?
 
@@ -156,7 +159,7 @@ final class PlayerModel: ObservableObject {
         }
         guard let now else { return }
         Debug.log("track: \(now.key) (\(now.album))")
-        async let clip = youtube.video(for: now)
+        async let clip: YouTubeVideo? = Self.videosAllowed ? youtube.video(for: now) : nil
         let spotifyCover = Self.largeCover(now.artworkURL)
         var art: AlbumArt?
         var incomplete = false
@@ -202,6 +205,17 @@ final class PlayerModel: ObservableObject {
         let clipFound = await clip
         if track?.key == now.key { video = clipFound }
         Debug.log("youtube: \(clipFound?.id ?? "none")")
+    }
+
+    /// The Music videos setting changed: look for (or drop) this song's video now.
+    func videoSettingChanged() {
+        guard let song = track else { return }
+        if !Self.videosAllowed { video = nil; return }
+        Task { [weak self] in
+            guard let self else { return }
+            let found = await self.youtube.video(for: song)
+            if self.track?.key == song.key { self.video = found }
+        }
     }
 
     /// Apple didn't answer fully (refusing, or no network): "no animation" must not be taken for "unknown", so ask again.
