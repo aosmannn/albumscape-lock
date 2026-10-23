@@ -36,10 +36,6 @@ struct InfoOverlayView: View {
                 LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.leading, 32).padding(.top, 60)
             }
-            if model.idleArt == nil, model.track?.isPlaying == true, AudioSpectrum.shared.running {
-                SpectrumBars(accent: accent, count: 30, barWidth: 7, spacing: 6).frame(width: 400, height: 96)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing).padding(.trailing, 56).padding(.bottom, 56)
-            }
             if let toast = model.toast {
                 Text(toast).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 8).background(Capsule().fill(.black.opacity(0.55)))
@@ -295,7 +291,10 @@ private struct SongInfo: View {
     var body: some View {
         if let track {
             VStack(alignment: .leading, spacing: 6) {
-                Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
+                HStack(spacing: 16) {
+                    Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
+                    if AudioSpectrum.shared.running, track.isPlaying { SpectrumBars(accent: accent, count: 6, barWidth: 5, spacing: 4).frame(width: 56, height: 36) }
+                }
                 Text([track.artist, album ?? track.album].filter { !$0.isEmpty }.joined(separator: "  ·  "))
                     .font(.system(size: 18)).opacity(0.8).lineLimit(1)
                 if track.duration > 0 {
@@ -358,7 +357,7 @@ struct MiniPlayer: View {
                     Text(model.track?.artist ?? "").font(.system(size: 12.5)).opacity(0.8).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if AudioSpectrum.shared.running, model.track?.isPlaying == true { SpectrumBars(accent: accent, count: 7, barWidth: 3.5, spacing: 3).frame(width: 46, height: 28) }
+                if AudioSpectrum.shared.running, model.track?.isPlaying == true { SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3).frame(width: 36, height: 24) }
             }
 
             TimelineView(.periodic(from: .now, by: 0.2)) { context in

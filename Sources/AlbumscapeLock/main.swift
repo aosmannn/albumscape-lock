@@ -371,8 +371,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let view = VStack(spacing: 28) {
                 ForEach(Array([[Float](repeating: 0, count: 48), levels { _ in 0.35 }, loud].enumerated()), id: \.offset) { _, l in
                     HStack(spacing: 50) {
-                        SpectrumBars(accent: accent, count: 7, barWidth: 3.5, spacing: 3, levels: l).frame(width: 46, height: 28)
-                        SpectrumBars(accent: accent, count: 30, barWidth: 7, spacing: 6, levels: l).frame(width: 400, height: 96)
+                        SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3, levels: l).frame(width: 36, height: 24)
+                        SpectrumBars(accent: accent, count: 6, barWidth: 5, spacing: 4, levels: l).frame(width: 56, height: 36)
                     }
                 }
             }.padding(40).background(Color(white: 0.1))
