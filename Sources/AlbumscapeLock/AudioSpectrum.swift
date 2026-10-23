@@ -139,7 +139,9 @@ final class AudioSpectrum: ObservableObject {
                 guard let self else { return }
                 self.bands = self.processor.snapshot()
                 ticks += 1
-                if ticks % 90 == 0 { let r = self.processor.takeReport(); Debug.log("spectrum (\(source)): \(r.blocks) buffers in 3 s, loudest sample \(String(format: "%.3f", r.peak)), \(r.channels) channel(s), \(Int(self.processor.sampleRate)) Hz") }
+                if ticks % 90 == 0 { let r = self.processor.takeReport(); let b = self.bands, g = b.count / 6
+                    let groups = (0..<6).map { String(format: "%.2f", b[($0 * g)..<(($0 + 1) * g)].max() ?? 0) }.joined(separator: " ")
+                    Debug.log("spectrum (\(source)): \(r.blocks) buffers in 3 s, loudest sample \(String(format: "%.3f", r.peak)), \(r.channels) channel(s), \(Int(self.processor.sampleRate)) Hz, bars bass>treble: \(groups)") }
             }
         }
         Debug.log("spectrum: listening to the system audio (\(source))")

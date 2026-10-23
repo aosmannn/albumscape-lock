@@ -428,14 +428,9 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if UserDefaults.standard.bool(forKey: "spectrumSelfTest") {
             // One-off check that the audio tap hears the Mac's own sound: listens while two soft system sounds play.
             UserDefaults.standard.removeObject(forKey: "spectrumSelfTest")
-            AudioSpectrum.shared.holdUntil = Date().addingTimeInterval(12)
+            AudioSpectrum.shared.holdUntil = Date().addingTimeInterval(16)
             AudioSpectrum.shared.start()
-            for (i, name) in ["Glass", "Hero", "Glass"].enumerated() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0 + Double(i) * 1.6) {
-                    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/afplay"); p.arguments = ["-v", "1.0", "/System/Library/Sounds/\(name).aiff"]; try? p.run()
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 11) { AudioSpectrum.shared.stop() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 16) { AudioSpectrum.shared.stop() }
         }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
