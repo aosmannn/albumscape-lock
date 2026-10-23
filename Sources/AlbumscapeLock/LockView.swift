@@ -294,7 +294,7 @@ private struct SongInfo: View {
                 HStack(alignment: .center, spacing: 12) {
                     Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
                     // small and level with the title's middle, like the one in Droppy's widget
-                    if AudioSpectrum.shared.running, track.isPlaying {
+                    if AudioSpectrum.enabled {  // paused it stays, as still dots, and starts moving the moment sound does
                         SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3).frame(width: 32, height: 22)
                     }
                 }
@@ -360,7 +360,7 @@ struct MiniPlayer: View {
                     Text(model.track?.artist ?? "").font(.system(size: 12.5)).opacity(0.8).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if AudioSpectrum.shared.running, model.track?.isPlaying == true { SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3).frame(width: 36, height: 24) }
+                if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3).frame(width: 36, height: 24) }
             }
 
             TimelineView(.periodic(from: .now, by: 0.2)) { context in

@@ -496,9 +496,9 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
             }
         }
-        // The visualizer listens only while the player is on screen and a song plays.
+        // The visualizer listens only while the player is on screen.
         let spectrum = AudioSpectrum.shared
-        if AudioSpectrum.enabled, overlay.isShowing, model.track?.isPlaying == true, model.idleArt == nil { spectrum.start() }
+        if AudioSpectrum.enabled, overlay.isShowing, model.idleArt == nil { spectrum.start() }  // listening while the player is up, paused or not, so it starts moving at once
         else if spectrum.running, Date() >= spectrum.holdUntil { spectrum.stop() }
         guard Wallpaper.enabled else {
             // Not changing the wallpaper: but if an earlier version left a cover on it, put your own back, once.
