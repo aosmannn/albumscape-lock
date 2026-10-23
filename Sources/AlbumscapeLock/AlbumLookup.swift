@@ -53,7 +53,7 @@ actor AlbumLookup {
     /// A page from music.apple.com. Spaced out a little too, so the site is never hammered either.
     private func webPage(_ url: URL) async -> String? {
         let foreground = LookupLane.foreground
-        let gap: TimeInterval = foreground ? 0.8 : 2.5
+        let gap: TimeInterval = foreground ? 0 : 2.5  // the song you're playing: no wait
         let slot = max(Date(), foreground ? nextWebForeground : nextWebBackground)
         if foreground { nextWebForeground = slot.addingTimeInterval(gap) } else { nextWebBackground = slot.addingTimeInterval(gap) }
         let wait = slot.timeIntervalSinceNow
@@ -116,9 +116,16 @@ actor AlbumLookup {
         for m in regex.matches(in: html, range: NSRange(html.startIndex..., in: html)) {
             if let r = Range(m.range(at: 1), in: html), !ids.contains(String(html[r])) { ids.append(String(html[r])) }
         }
+        // every candidate album page at once, kept in the search's order
+        let pages = await withTaskGroup(of: (Int, WebAlbum?).self) { group -> [WebAlbum?] in
+            for (i, id) in ids.prefix(8).enumerated() { group.addTask { (i, await self.webAlbum(id: id)) } }
+            var out = [WebAlbum?](repeating: nil, count: min(ids.count, 8))
+            for await (i, page) in group { out[i] = page }
+            return out
+        }
         var found: [WebAlbum] = []
-        for id in ids.prefix(8) {
-            guard let candidate = await webAlbum(id: id) else { continue }
+        for page in pages {
+            guard let candidate = page else { continue }
             let nameWords = words(candidate.name)
             let sameName = nameWords == wantFull || (words(clean(candidate.name)) == wantClean && !wantClean.isEmpty)
             if sameName, words(main).isSubset(of: words(candidate.artist)) { found.append(candidate) }

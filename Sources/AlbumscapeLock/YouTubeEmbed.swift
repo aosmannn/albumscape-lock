@@ -105,7 +105,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             if(!first){first=true;document.getElementById('a').classList.add('on')}
             // YouTube draws its own title, spinner and pause screen whenever the video starts or loads (about 4 s). The
             // cover (or the animated cover) stays on screen until the video has been playing steadily, as on Windows.
-            clearTimeout(liveTimer);liveTimer=setTimeout(function(){if(cur&&!switching)send('ready')},4500);
+            clearTimeout(liveTimer);liveTimer=setTimeout(function(){if(cur&&!switching)send('ready')},3000);
           });
           setInterval(tick,300);
         }
@@ -133,7 +133,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             setTimeout(function(){  // once YouTube's own start-of-video overlay has passed
               document.getElementById(next).classList.add('on');document.getElementById(oldSlot).classList.remove('on');
               setTimeout(function(){try{old.destroy()}catch(x){}cur=np;slot=next;switching=false},1000);
-            },4600);
+            },3200);
           });
         }
         var pauseTimer=null,showTimer=null;

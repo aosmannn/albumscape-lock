@@ -27,12 +27,35 @@ actor YouTubeFinder {
     private var blocked: Set<String> = []
     private var blockedAt = Date.distantPast
     private var cache: [String: YouTubeVideo?] = [:]
+    /// Every song's answer is kept on disk, so a song heard before gets its video at once, even after a restart.
+    private static let cacheFile = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("AlbumscapeLock/videos.json")
+    private var loaded = false
 
     func video(for track: Track) async -> YouTubeVideo? {
+        loadCache()
         if let hit = cache[track.key] { return hit }
         guard let found = await find(track) else { return nil }  // nothing is remembered when a service was down
         cache.updateValue(found.value, forKey: track.key)  // a nil value means "checked: none", so not plain assignment
+        saveCache()
         return found.value
+    }
+
+    private func loadCache() {
+        guard !loaded else { return }
+        loaded = true
+        guard let data = try? Data(contentsOf: Self.cacheFile), let json = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else { return }
+        for (key, v) in json {
+            if let id = v["id"] as? String { cache[key] = YouTubeVideo(id: id, isVisualizer: v["visualizer"] as? Bool ?? false, offset: v["offset"] as? Double ?? 0) }
+            else { cache.updateValue(nil, forKey: key) }
+        }
+    }
+
+    private func saveCache() {
+        var json: [String: [String: Any]] = [:]
+        for (key, v) in cache { json[key] = v.map { ["id": $0.id, "visualizer": $0.isVisualizer, "offset": $0.offset] } ?? [:] }
+        try? FileManager.default.createDirectory(at: Self.cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: json) { try? data.write(to: Self.cacheFile) }
     }
 
     /// `.some(nil)` means "checked: there is no video"; `nil` means "couldn't tell, try again".
@@ -47,22 +70,28 @@ actor YouTubeFinder {
             return Box(nil)  // the list says "no music video" for this song
         }
 
-        var best: YouTubeVideo?
-        var reached = false
-        var seen = Set<String>()
-        for pool in [{ await self.ids("genius", track, limit: 4) }, { await self.ids("ytsearch", track, limit: 12) }] {
-            guard let candidates = await pool() else { continue }
-            reached = true
-            for id in candidates where seen.insert(id).inserted && !blocked.contains(id) {
-                switch await verify(track, id) {
-                case .video: return Box(YouTubeVideo(id: id, isVisualizer: false, offset: 0))
-                case .visualizer where best == nil: best = YouTubeVideo(id: id, isVisualizer: true, offset: 0)
-                default: break
+        // Both sources at once, then every candidate checked at once; the first in order that is the real video wins.
+        async let geniusIDs = ids("genius", track, limit: 4)
+        async let searchIDs = ids("ytsearch", track, limit: 12)
+        let pools = await [geniusIDs, searchIDs]
+        guard pools.contains(where: { $0 != nil }) else { return nil }
+        var candidates: [String] = []
+        for id in pools.compactMap({ $0 }).joined() where !candidates.contains(id) && !blocked.contains(id) { candidates.append(id) }
+        if candidates.isEmpty { return Box(nil) }
+        return await withTaskGroup(of: (Int, Kind).self) { group -> Box in
+            for (i, id) in candidates.enumerated() { group.addTask { (i, await self.verify(track, id)) } }
+            var results = [Kind?](repeating: nil, count: candidates.count)
+            for await (i, kind) in group {
+                results[i] = kind
+                // decided as soon as every earlier candidate is known: the first real video, in order
+                for (j, r) in results.enumerated() {
+                    guard let r else { break }
+                    if r == .video { group.cancelAll(); return Box(YouTubeVideo(id: candidates[j], isVisualizer: false, offset: 0)) }
                 }
             }
-            if best != nil { break }
+            if let j = results.firstIndex(where: { $0 == .visualizer }) { return Box(YouTubeVideo(id: candidates[j], isVisualizer: true, offset: 0)) }
+            return Box(nil)
         }
-        return reached ? Box(best) : nil
     }
 
     private struct Box { let value: YouTubeVideo?; init(_ v: YouTubeVideo?) { value = v } }

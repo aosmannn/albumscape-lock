@@ -53,43 +53,44 @@ struct InfoOverlayView: View {
 /// soft sheen across the upper half and a shadow beneath. When the minute changes, the digits roll over into the new ones.
 struct LockClock: View {
     @ObservedObject var model: PlayerModel
-    @StateObject private var glass = GlassClock()
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
             let time = context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
                 .replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: "")
                 .replacingOccurrences(of: "\u{202F}AM", with: "").replacingOccurrences(of: "\u{202F}PM", with: "")
+            let t = Float(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600))
             VStack(spacing: 0) {
                 Text(context.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .shadow(color: .black.opacity(0.35), radius: 10, y: 1)
-                    .frame(height: 31)
-                ZStack {
-                    if let image = glass.image {
-                        // real glass: the album art behind the digits, bent through them (GlassText)
-                        Image(nsImage: image).id(glass.key).transition(.opacity)
-                    } else {
-                        glassTime(time).padding(16)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.6), value: glass.key)
-                .shadow(color: .black.opacity(0.3), radius: 18, y: 6)
-                .padding(.top, -26)
-                .task(id: time + (model.displayArt?.coverURL?.absoluteString ?? "")) {
-                    await glass.update(time: time, cover: model.displayArt?.coverURL, top: 75)
-                }
+                liquidTime(time, t: t).padding(.top, -10)
             }
         }
     }
 
-    /// Until the glass is drawn (a fraction of a second): a see-through white with a light top edge.
-    private func glassTime(_ time: String) -> some View {
-        Text(time)
+    /// The time as water: mostly clear, so the picture behind shows through; slow ripples on the outline, light moving
+    /// through it like caustics, bright edges facing the light and shaded edges facing away (Shaders/Liquid.metal).
+    private func liquidTime(_ time: String, t: Float) -> some View {
+        let digits = Text(time)
             .font(.system(size: 124, weight: .bold, design: .rounded).monospacedDigit())
-            .foregroundStyle(LinearGradient(colors: [.white.opacity(0.78), .white.opacity(0.34)], startPoint: .top, endPoint: .bottom))
-            .shadow(color: .white.opacity(0.55), radius: 0, x: 0, y: -1)
+            .foregroundStyle(.white)
+            .contentTransition(.numericText())
+            .animation(.smooth(duration: 0.7), value: time)
+            .padding(8)
+        let wave = ShaderLibrary.liquidWave(.float(t))
+        return ZStack {
+            digits
+                .distortionEffect(wave, maxSampleOffset: CGSize(width: 4, height: 4))
+                .layerEffect(ShaderLibrary.liquidShade(.float(t)), maxSampleOffset: CGSize(width: 3, height: 3))
+            digits
+                .distortionEffect(wave, maxSampleOffset: CGSize(width: 4, height: 4))
+                .layerEffect(ShaderLibrary.liquidShine(.float(t)), maxSampleOffset: CGSize(width: 3, height: 3))
+                .blendMode(.plusLighter)
+        }
+        .compositingGroup()
+        .blendMode(.plusLighter)
     }
 }
 

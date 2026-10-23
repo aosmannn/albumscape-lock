@@ -350,22 +350,17 @@ final class Delegate: NSObject, NSApplicationDelegate {
     private var locked = false
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        if let i = CommandLine.arguments.firstIndex(of: "--clock-test"), i + 1 < CommandLine.arguments.count {
-            // The glass clock over the current wallpaper, into a PNG: `AlbumscapeLock --clock-test out.png`
-            let screen = NSScreen.screens[0]
-            let image = NSWorkspace.shared.desktopImageURL(for: screen).flatMap { NSImage(contentsOf: $0) }
-            let path = CommandLine.arguments.count > i + 2 ? CommandLine.arguments[i + 2] : nil  // optional: another picture behind it
-            let backdrop = path.flatMap { NSImage(contentsOfFile: $0) } ?? image
-            if let glass = GlassText.render("9:41", fontSize: 124, backdrop: backdrop, screenSize: screen.frame.size, top: 85, scale: screen.backingScaleFactor),
-               let back = backdrop, let behind = GlassShader.crop(back, screenSize: screen.frame.size, origin: CGPoint(x: (screen.frame.width - glass.size.width) / 2, y: 85), width: Int(glass.size.width * 2), height: Int(glass.size.height * 2), scale: 2) {
-                let canvas = NSImage(size: glass.size)
-                canvas.lockFocus()
-                NSImage(cgImage: behind, size: glass.size).draw(in: NSRect(origin: .zero, size: glass.size))
-                glass.draw(in: NSRect(origin: .zero, size: glass.size))
-                canvas.unlockFocus()
-                if let tiff = canvas.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
-                    try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
-                }
+        if let i = CommandLine.arguments.firstIndex(of: "--liquid-test"), i + 1 < CommandLine.arguments.count {
+            // The liquid clock over a picture, into a PNG: `AlbumscapeLock --liquid-test out.png [picture]`
+            let picture = CommandLine.arguments.count > i + 2 ? NSImage(contentsOfFile: CommandLine.arguments[i + 2]) : nil
+            let view = ZStack {
+                if let picture { Image(nsImage: picture).resizable().aspectRatio(contentMode: .fill) } else { Color.purple }
+                LockClock(model: model).padding(.top, 30)
+            }.frame(width: 700, height: 300).clipped()
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 2
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
             }
             exit(0)
         }
