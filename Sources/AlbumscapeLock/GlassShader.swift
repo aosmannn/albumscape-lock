@@ -129,13 +129,13 @@ enum GlassShader {
         return sqrtf(d * (2 * zR - d))
     }
 
-    private static func smoothstep(_ e0: Float, _ e1: Float, _ x: Float) -> Float {
+    static func smoothstep(_ e0: Float, _ e1: Float, _ x: Float) -> Float {
         let t = min(max((x - e0) / (e1 - e0), 0), 1)
         return t * t * (3 - 2 * t)
     }
 
     /// Bilinear sample, in crop pixels, colours 0...1.
-    private static func sample(_ buf: [UInt8], _ w: Int, _ h: Int, _ p: SIMD2<Float>) -> SIMD3<Float> {
+    static func sample(_ buf: [UInt8], _ w: Int, _ h: Int, _ p: SIMD2<Float>) -> SIMD3<Float> {
         let x = min(max(p.x - 0.5, 0), Float(w - 1)), y = min(max(p.y - 0.5, 0), Float(h - 1))
         let x0 = Int(x), y0 = Int(y), x1 = min(x0 + 1, w - 1), y1 = min(y0 + 1, h - 1)
         let fx = x - Float(x0), fy = y - Float(y0)
@@ -151,7 +151,7 @@ enum GlassShader {
     // MARK: Pictures
 
     /// The part of the wallpaper (filled to the screen like the desktop does) that lies under the card and its margin.
-    private static func crop(_ image: NSImage, screenSize: CGSize, origin: CGPoint, width: Int, height: Int, scale: CGFloat) -> CGImage? {
+    static func crop(_ image: NSImage, screenSize: CGSize, origin: CGPoint, width: Int, height: Int, scale: CGFloat) -> CGImage? {
         guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         let fill = max(screenSize.width / image.size.width, screenSize.height / image.size.height)
@@ -168,7 +168,7 @@ enum GlassShader {
         return ctx.makeImage()
     }
 
-    private static func blurred(_ image: CGImage, sigma: CGFloat) -> CGImage? {
+    static func blurred(_ image: CGImage, sigma: CGFloat) -> CGImage? {
         let input = CIImage(cgImage: image)
         guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
         filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
@@ -177,7 +177,7 @@ enum GlassShader {
         return CIContext().createCGImage(output, from: input.extent)
     }
 
-    private static func pixels(_ image: CGImage, width: Int, height: Int) -> [UInt8]? {
+    static func pixels(_ image: CGImage, width: Int, height: Int) -> [UInt8]? {
         var data = [UInt8](repeating: 0, count: width * height * 4)
         let ok = data.withUnsafeMutableBytes { raw -> Bool in
             guard let ctx = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,

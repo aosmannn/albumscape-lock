@@ -31,7 +31,7 @@ struct InfoOverlayView: View {
             TimelineView(.periodic(from: .now, by: 0.25)) { context in
                 SongInfo(track: model.idleArt == nil ? model.track : nil, position: model.position(at: context.date), accent: accent, album: model.art?.album).padding(48)
             }
-            LockClock().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 70)
+            LockClock(model: model).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 70)
             if model.idleArt == nil {  // the shuffle shows only the animation and the clock
                 LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.leading, 32).padding(.top, 60)
@@ -52,6 +52,9 @@ struct InfoOverlayView: View {
 /// The numbers are drawn as glass: a see-through white that is brighter at the top, with a light rim on the top edge, a
 /// soft sheen across the upper half and a shadow beneath. When the minute changes, the digits roll over into the new ones.
 struct LockClock: View {
+    @ObservedObject var model: PlayerModel
+    @StateObject private var glass = GlassClock()
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let time = context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
@@ -60,29 +63,33 @@ struct LockClock: View {
             VStack(spacing: 0) {
                 Text(context.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(.white.opacity(0.85))
                     .shadow(color: .black.opacity(0.35), radius: 10, y: 1)
-                glassTime(time)
-                    .padding(.top, -10)
+                    .frame(height: 31)
+                ZStack {
+                    if let image = glass.image {
+                        // real glass: the album art behind the digits, bent through them (GlassText)
+                        Image(nsImage: image).id(glass.key).transition(.opacity)
+                    } else {
+                        glassTime(time).padding(16)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.6), value: glass.key)
+                .shadow(color: .black.opacity(0.3), radius: 18, y: 6)
+                .padding(.top, -26)
+                .task(id: time + (model.displayArt?.coverURL?.absoluteString ?? "")) {
+                    await glass.update(time: time, cover: model.displayArt?.coverURL, top: 75)
+                }
             }
         }
     }
 
+    /// Until the glass is drawn (a fraction of a second): a see-through white with a light top edge.
     private func glassTime(_ time: String) -> some View {
-        let font = Font.system(size: 124, weight: .bold, design: .rounded).monospacedDigit()
-        return Text(time)
-            .font(font)
-            .contentTransition(.numericText())
-            .animation(.smooth(duration: 0.7), value: time)
+        Text(time)
+            .font(.system(size: 124, weight: .bold, design: .rounded).monospacedDigit())
             .foregroundStyle(LinearGradient(colors: [.white.opacity(0.78), .white.opacity(0.34)], startPoint: .top, endPoint: .bottom))
-            .overlay {  // the sheen, only on the letters
-                LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.0)], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.55))
-                    .mask(Text(time).font(font).contentTransition(.numericText()).animation(.smooth(duration: 0.7), value: time))
-                    .allowsHitTesting(false)
-            }
-            .shadow(color: .white.opacity(0.55), radius: 0, x: 0, y: -1)  // the light rim on the top edge
-            .shadow(color: .black.opacity(0.28), radius: 0, x: 0, y: 2)   // the dark edge underneath
-            .shadow(color: .black.opacity(0.35), radius: 22, y: 8)
+            .shadow(color: .white.opacity(0.55), radius: 0, x: 0, y: -1)
     }
 }
 
