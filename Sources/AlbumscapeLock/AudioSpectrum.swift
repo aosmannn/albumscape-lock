@@ -106,6 +106,9 @@ final class AudioSpectrum: ObservableObject {
     private var timer: Timer?
     private let queue = DispatchQueue(label: "albumscape.spectrum", qos: .userInteractive)
 
+    /// While this time is in the future the visualizer keeps listening even when the player isn't on screen (for the
+    /// Allow button and the self-test).
+    var holdUntil = Date.distantPast
     private var screenAudio: ScreenAudio?
     private var starting = false
 
@@ -215,8 +218,8 @@ final class AudioSpectrum: ObservableObject {
 
     /// Settings > Allow: listens for a few seconds, so macOS asks for System Audio permission now, on the desktop.
     func requestAccess() {
+        holdUntil = Date().addingTimeInterval(6)
         start()
-        Task { try? await Task.sleep(for: .seconds(4)); if !(NSApp.windows.contains { $0.isVisible && $0.level.rawValue >= 1000 }) { self.stop() } }
     }
 }
 

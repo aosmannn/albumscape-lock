@@ -408,11 +408,14 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if UserDefaults.standard.bool(forKey: "spectrumSelfTest") {
             // One-off check that the audio tap hears the Mac's own sound: listens while two soft system sounds play.
             UserDefaults.standard.removeObject(forKey: "spectrumSelfTest")
+            AudioSpectrum.shared.holdUntil = Date().addingTimeInterval(12)
             AudioSpectrum.shared.start()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/afplay"); p.arguments = ["-v", "0.25", "/System/Library/Sounds/Submarine.aiff"]; try? p.run()
+            for (i, name) in ["Glass", "Hero", "Glass"].enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0 + Double(i) * 1.6) {
+                    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/afplay"); p.arguments = ["-v", "1.0", "/System/Library/Sounds/\(name).aiff"]; try? p.run()
+                }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { AudioSpectrum.shared.stop() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 11) { AudioSpectrum.shared.stop() }
         }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
@@ -481,7 +484,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // The visualizer listens only while the player is on screen and a song plays.
         let spectrum = AudioSpectrum.shared
         if AudioSpectrum.enabled, overlay.isShowing, model.track?.isPlaying == true, model.idleArt == nil { spectrum.start() }
-        else if spectrum.running { spectrum.stop() }
+        else if spectrum.running, Date() >= spectrum.holdUntil { spectrum.stop() }
         guard Wallpaper.enabled else {
             // Not changing the wallpaper: but if an earlier version left a cover on it, put your own back, once.
             if wallpaperShown != "own" {
