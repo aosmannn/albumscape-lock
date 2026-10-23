@@ -6,7 +6,9 @@
 //  had saved.
 //
 
+import AppKit
 import Foundation
+import SwiftUI
 
 @MainActor
 final class AlbumDB {
@@ -16,6 +18,7 @@ final class AlbumDB {
     private var noMotion: [String: Date] = [:]       // "artist|album" -> when it was found to have none
     private var listened: [String: Date] = [:]       // "artist|album" -> when you last played it
     private var brightness: [String: Double] = [:]   // "artist|album" -> how light its cover is, 0...1
+    private var accents: [String: [Double]] = [:]    // "artist|album" -> the song colour, r, g, b
     private static let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     private static let file = directory.appendingPathComponent("AlbumscapeLock/albums.json")
     private static let helperState = directory.appendingPathComponent("DroppyMotionFill/state.json")
@@ -26,6 +29,7 @@ final class AlbumDB {
             noMotion = (json["none"] as? [String: Double] ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
             listened = (json["listened"] as? [String: Double] ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
             brightness = json["brightness"] as? [String: Double] ?? [:]
+            accents = json["accents"] as? [String: [Double]] ?? [:]
         } else if let data = try? Data(contentsOf: Self.helperState),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let old = json["albumLinks"] as? [String: String] {
             links = old.filter { $0.value.hasPrefix("http") }
@@ -47,6 +51,18 @@ final class AlbumDB {
             let parts = entry.components(separatedBy: "|")
             if parts.count >= 3 { listened["\(Self.mainArtist(parts[1]))|\(parts[2...].joined(separator: "|"))".lowercased()] = now }
         }
+    }
+
+    /// The colour worked out for this album's cover the last time, so a song from it has its colour at once.
+    func accent(for track: Track) -> Color? {
+        guard let c = accents[Self.key(track)], c.count == 3 else { return nil }
+        return Color(red: c[0], green: c[1], blue: c[2])
+    }
+
+    func setAccent(_ color: Color, for track: Track) {
+        guard let c = NSColor(color).usingColorSpace(.deviceRGB) else { return }
+        accents[Self.key(track)] = [Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent)]
+        save()
     }
 
     func setBrightness(_ value: Double, for track: Track) {
@@ -122,7 +138,7 @@ final class AlbumDB {
 
     private func save() {
         try? FileManager.default.createDirectory(at: Self.file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let json: [String: Any] = ["links": links, "none": noMotion.mapValues { $0.timeIntervalSince1970 }, "listened": listened.mapValues { $0.timeIntervalSince1970 }, "brightness": brightness]
+        let json: [String: Any] = ["links": links, "none": noMotion.mapValues { $0.timeIntervalSince1970 }, "listened": listened.mapValues { $0.timeIntervalSince1970 }, "brightness": brightness, "accents": accents]
         if let data = try? JSONSerialization.data(withJSONObject: json) { try? data.write(to: Self.file) }
     }
 }

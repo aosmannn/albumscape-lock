@@ -4,6 +4,7 @@
 
 import AppKit
 import Combine
+import SwiftUI
 import Foundation
 
 /// What's playing, and the picture and video found for it. Polls once a second while someone needs it.
@@ -217,6 +218,14 @@ final class PlayerModel: ObservableObject {
 
     private var songTask: Task<Void, Never>?
 
+    /// Puts the picture on screen with the song's saved colour, whichever step of the lookup got there.
+    private func publish(_ art: AlbumArt?, for now: Track) {
+        guard track?.key == now.key else { return }
+        var shown = art
+        if let saved = AlbumDB.shared.accent(for: now) { shown?.accent = saved }
+        self.art = shown
+    }
+
     private func loadSong(_ now: Track) async {
         Debug.log("track: \(now.key) (\(now.album))")
         AlbumDB.shared.noteListened(now)
@@ -228,22 +237,31 @@ final class PlayerModel: ObservableObject {
         }
         defer { clipTask.cancel() }
         let spotifyCover = Self.quickCover(now.artworkURL)
+        // The colour first of all: the one saved for this album, else the last song's (so it never drops to white), and
+        // the real one worked out from the cover at once, in parallel with everything else.
+        let carried = AlbumDB.shared.accent(for: now) ?? self.art?.accent
+        let colourTask = Task { @MainActor [weak self] in
+            guard let self, AlbumDB.shared.accent(for: now) == nil, let cover = spotifyCover, let c = await CoverColor.vivid(from: cover) else { return }
+            AlbumDB.shared.setAccent(c, for: now)
+            if self.track?.key == now.key { withAnimation(.easeInOut(duration: 0.5)) { self.art?.accent = c } }
+        }
+        defer { _ = colourTask }
         var art: AlbumArt?
         var incomplete = false
         // A known album starts at once from what was saved; only a new one is looked up.
         switch AlbumDB.shared.answer(for: now) {
         case .motion(let url):
-            var known = AlbumArt(album: now.album); known.motionURL = url; known.coverURL = spotifyCover
+            var known = AlbumArt(album: now.album); known.motionURL = url; known.coverURL = spotifyCover; known.accent = carried
             art = known
-            if track?.key == now.key { self.art = known }
+            publish(known, for: now)
         case .none where spotifyCover != nil:
-            var known = AlbumArt(album: now.album); known.coverURL = spotifyCover
+            var known = AlbumArt(album: now.album); known.coverURL = spotifyCover; known.accent = carried
             art = known
-            if track?.key == now.key { self.art = known }
+            publish(known, for: now)
         default:
             if let cover = spotifyCover {  // the cover shows now; the lookup (which can take a while) adds the animation
-                var quick = AlbumArt(album: now.album); quick.coverURL = cover
-                if track?.key == now.key { self.art = quick }
+                var quick = AlbumArt(album: now.album); quick.coverURL = cover; quick.accent = carried
+                publish(quick, for: now)
             }
             try? await Task.sleep(for: .milliseconds(300))  // skipping fast: only the song you land on is looked up
             if Task.isCancelled { return }
@@ -264,7 +282,7 @@ final class PlayerModel: ObservableObject {
                 Debug.log("motion art from the helper's saved answers")
             }
             if !incomplete { AlbumDB.shared.remember(now, motion: art?.motionURL) }
-            if track?.key == now.key { self.art = art }  // the picture and animation show before the colour is worked out
+            publish(art, for: now)  // the picture and animation show before the colour is worked out
         }
         // The quick 640-pixel cover shows first; the full-size one replaces it once it has downloaded, so the cover is
         // sharp full screen.
@@ -273,9 +291,10 @@ final class PlayerModel: ObservableObject {
             art?.coverURL = large
             self.art = art
         }
-        if let cover = art?.coverURL, let accent = await CoverColor.vivid(from: cover) {  // the cover's own colour, not Apple's text colours
+        if AlbumDB.shared.accent(for: now) == nil, let cover = art?.coverURL, let accent = await CoverColor.vivid(from: cover) {  // the cover's own colour, not Apple's text colours
+            AlbumDB.shared.setAccent(accent, for: now)
             art?.accent = accent
-            if track?.key == now.key { self.art = art }
+            publish(art, for: now)
         }
         if let cover = art?.coverURL, let b = await CoverColor.brightness(from: cover) { AlbumDB.shared.setBrightness(b, for: now) }
         Debug.log("art: cover=\(art?.coverURL != nil) motion=\(art?.motionURL != nil)")

@@ -121,7 +121,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             // cover (or the animated cover) stays on screen until the video has been playing steadily, as on Windows.
             clearTimeout(liveTimer);liveTimer=setTimeout(function(){
               if(cur&&!switching&&!faded){document.body.style.opacity=1;send('ready')}
-            },2800);
+            },5500);  // YouTube's own overlay (title, II) lasts about 4 s after a start: the Windows app waits 5.5 s too
           });
           setInterval(tick,300);
         }
@@ -149,7 +149,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             setTimeout(function(){  // once YouTube's own start-of-video overlay has passed
               document.getElementById(next).classList.add('on');document.getElementById(oldSlot).classList.remove('on');
               setTimeout(function(){try{old.destroy()}catch(x){}cur=np;slot=next;switching=false},1000);
-            },3200);
+            },5500);
           });
         }
         var pauseTimer=null,showTimer=null;
@@ -162,10 +162,10 @@ struct YouTubeEmbed: NSViewRepresentable {
           if(!p){
             pauseTimer=setTimeout(function(){try{cur.pauseVideo()}catch(x){}},320);
           }else{
-            var wait=1800;
+            var wait=2600;
             try{
               // only jump if the video is really out of step: a seek makes YouTube draw its spinner for about 4 s
-              if(Math.abs(cur.getCurrentTime()-seek)>2.5){cur.seekTo(seek,true);wait=4600}
+              if(Math.abs(cur.getCurrentTime()-seek)>2.5){cur.seekTo(seek,true);wait=5500}
               cur.playVideo();
             }catch(x){}
             if(!faded)showTimer=setTimeout(function(){document.body.style.opacity=1;send('ready')},wait);
