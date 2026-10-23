@@ -321,7 +321,7 @@ private struct SongInfo: View {
                     Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
                     // small and level with the title's middle, like the one in Droppy's widget
                     if AudioSpectrum.enabled {  // paused it stays, as still dots, and starts moving the moment sound does
-                        SpectrumBars(accent: accent, count: 7, barWidth: 3.5, spacing: 3).frame(width: 43, height: 20)
+                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3).frame(width: 29.5, height: 20)
                     }
                 }
                 Text([track.artist, album ?? track.album].filter { !$0.isEmpty }.joined(separator: "  ·  "))
@@ -390,7 +390,7 @@ struct MiniPlayer: View {
                 .id(model.track?.key ?? "none").transition(.opacity)  // the title and artist fade into the next song's
                 .animation(.easeInOut(duration: 0.4), value: model.track?.key)
                 Spacer(minLength: 0)
-                if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 7, barWidth: 3, spacing: 2.5).frame(width: 36, height: 14) }
+                if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 5, barWidth: 3, spacing: 2.5).frame(width: 25, height: 14) }
             }
 
             TimelineView(.periodic(from: .now, by: 0.2)) { context in
