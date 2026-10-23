@@ -85,7 +85,7 @@ final class Overlay {
         popups.removeAll()
         guard open, !model.expanded, let screen = screens.first, let card = windows.first else { return }
         let size = CGSize(width: OutputsPopup.width, height: OutputsPopup.height(model.outputs.count))
-        let frame = NSRect(x: card.frame.midX - size.width / 2, y: card.frame.maxY + 10, width: size.width, height: size.height)
+        let frame = NSRect(x: card.frame.maxX - size.width + 12, y: card.frame.maxY + 8, width: size.width, height: size.height)
         var backdrop: GlassBackdrop?
         if let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             backdrop = GlassBackdrop(image: image, screenSize: screen.frame.size, origin: CGPoint(x: frame.minX - screen.frame.minX, y: screen.frame.maxY - frame.maxY))
@@ -403,15 +403,15 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             model.outputs = AudioOutputs.list()
             let pop = CGSize(width: OutputsPopup.width, height: OutputsPopup.height(model.outputs.count))
             let origin = CGPoint(x: (screen.width - card.width) / 2, y: 500)
-            let popOrigin = CGPoint(x: (screen.width - pop.width) / 2, y: origin.y - pop.height - 10)
+            let popOrigin = CGPoint(x: origin.x + card.width - pop.width + 12, y: origin.y - pop.height - 8)
             let m: CGFloat = 30, total = CGSize(width: card.width + m * 2, height: card.height + pop.height + 10 + m * 2)
             let view = ZStack(alignment: .topLeading) {
                 Image(nsImage: picture).resizable().scaledToFill().frame(width: screen.width, height: screen.height).clipped()
                     .offset(x: -popOrigin.x + m, y: -popOrigin.y + m).frame(width: total.width, height: total.height, alignment: .topLeading).clipped()
                 OutputsPopup(model: model, backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: popOrigin))
-                    .offset(x: m + (card.width - pop.width) / 2, y: m)
+                    .offset(x: m + card.width - pop.width + 12, y: m)
                 MiniPlayer(model: model, nativeGlass: true, backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: origin))
-                    .frame(width: card.width, height: card.height).offset(x: m, y: m + pop.height + 10)
+                    .frame(width: card.width, height: card.height).offset(x: m, y: m + pop.height + 8)
             }.frame(width: total.width, height: total.height)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 2
