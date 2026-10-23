@@ -97,7 +97,8 @@ final class AudioSpectrum: ObservableObject {
     @Published private(set) var bands = [Float](repeating: 0, count: SpectrumProcessor.bandCount)
     @Published private(set) var running = false
 
-    static var enabled: Bool { UserDefaults.standard.object(forKey: "audioVisualizer") as? Bool != false }
+    /// Off unless you turn it on in Settings: it listens to the Mac's sound, and macOS shows its recording indicator while it does.
+    static var enabled: Bool { UserDefaults.standard.bool(forKey: "audioVisualizer") }
 
     private let processor = SpectrumProcessor()
     private var tapID = AudioObjectID(kAudioObjectUnknown)
