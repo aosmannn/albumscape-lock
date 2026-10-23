@@ -264,6 +264,13 @@ final class PlayerModel: ObservableObject {
             if !incomplete { AlbumDB.shared.remember(now, motion: art?.motionURL) }
             if track?.key == now.key { self.art = art }  // the picture and animation show before the colour is worked out
         }
+        // The quick 640-pixel cover shows first; the full-size one replaces it once it has downloaded, so the cover is
+        // sharp full screen.
+        if let quick = art?.coverURL, quick.absoluteString.contains("ab67616d0000b273"), let large = Self.largeCover(now.artworkURL),
+           (try? await URLSession.shared.data(from: large)) != nil, !Task.isCancelled, track?.key == now.key {
+            art?.coverURL = large
+            self.art = art
+        }
         if let cover = art?.coverURL, let accent = await CoverColor.vivid(from: cover) {  // the cover's own colour, not Apple's text colours
             art?.accent = accent
             if track?.key == now.key { self.art = art }
