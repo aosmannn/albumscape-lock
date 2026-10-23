@@ -31,6 +31,8 @@ struct InfoOverlayView: View {
             TimelineView(.periodic(from: .now, by: 0.25)) { context in
                 SongInfo(track: model.idleArt == nil ? model.track : nil, position: model.position(at: context.date), accent: accent, album: model.art?.album).padding(48)
             }
+            .id(model.track?.key ?? "none")
+            .transition(.opacity)
             LockClock(model: model).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 70)
             if model.idleArt == nil {  // the shuffle shows only the animation and the clock
                 LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
@@ -44,6 +46,7 @@ struct InfoOverlayView: View {
             }
         }
         .ignoresSafeArea()
+        .animation(.easeInOut(duration: 0.5), value: model.track?.key)
         .allowsHitTesting(false)
     }
 }
@@ -193,6 +196,10 @@ struct MediaLayer: View {
     @State private var readyKeys: Set<String> = []
     @State private var hold: Source?
     @State private var fading: Source?
+    @State private var leaving: Source?  // the last song's picture, fading out as the new song's comes in
+    @State private var coverFront: NSImage?
+    @State private var coverBack: NSImage?
+    @State private var frontOpacity = 1.0
 
     private enum Source: Equatable {
         case youtube(YouTubeVideo), file(URL)
@@ -219,7 +226,7 @@ struct MediaLayer: View {
     /// What is drawn: the current sources, plus the previous picture while it is still needed underneath.
     private var rendered: [Source] {
         var list: [Source] = []
-        for old in [fading, hold] {
+        for old in [fading, hold, leaving] {
             if let old, !sources.contains(old), !list.contains(old) { list.append(old) }
         }
         return list + sources
@@ -234,8 +241,13 @@ struct MediaLayer: View {
 
     var body: some View {
         ZStack {
-            if let cover = model.displayArt?.coverURL {
-                AsyncImage(url: cover) { $0.resizable().aspectRatio(contentMode: .fill).frame(maxWidth: .infinity, maxHeight: .infinity).clipped() } placeholder: { Color.clear }
+            // The covers: the new one fades in over the old one, which is then dropped.
+            if let back = coverBack {
+                Image(nsImage: back).resizable().aspectRatio(contentMode: .fill).frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+            }
+            if let front = coverFront {
+                Image(nsImage: front).resizable().aspectRatio(contentMode: .fill).frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+                    .opacity(frontOpacity)
             }
             ForEach(rendered, id: \.key) { source in
                 player(source)
@@ -244,6 +256,20 @@ struct MediaLayer: View {
             }
         }
         .clipped()
+        .task(id: model.displayArt?.coverURL) {
+            guard let url = model.displayArt?.coverURL, let (data, _) = try? await URLSession.shared.data(from: url), let image = NSImage(data: data), !Task.isCancelled else { return }
+            coverBack = coverFront
+            coverFront = image
+            frontOpacity = coverBack == nil ? 0 : 0.0
+            withAnimation(.easeInOut(duration: 0.7)) { frontOpacity = 1 }
+            try? await Task.sleep(for: .seconds(0.8))
+            if !Task.isCancelled { coverBack = nil }
+        }
+        .onChange(of: model.track?.key) { _ in
+            // a new song: the last song's video fades out while its cover is replaced
+            if let h = hold { leaving = h; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { if leaving == h { leaving = nil } } }
+            if model.idleArt == nil { hold = nil }
+        }
         .onChange(of: shownKey) { newKey in
             guard let newKey, let new = sources.first(where: { $0.key == newKey }) else { return }
             if let old = hold, old.key != newKey {
@@ -359,6 +385,8 @@ struct MiniPlayer: View {
                     }
                     Text(model.track?.artist ?? "").font(.system(size: 12.5)).opacity(0.8).lineLimit(1)
                 }
+                .id(model.track?.key ?? "none").transition(.opacity)  // the title and artist fade into the next song's
+                .animation(.easeInOut(duration: 0.4), value: model.track?.key)
                 Spacer(minLength: 0)
                 if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3).frame(width: 36, height: 24) }
             }
