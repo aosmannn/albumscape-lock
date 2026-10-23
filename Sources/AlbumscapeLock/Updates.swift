@@ -6,12 +6,12 @@ import SwiftUI
 @MainActor
 final class Updates: ObservableObject {
     static let shared = Updates()
-    static let latestURL = URL(string: "https://api.github.com/repos/aosmannn/albumscape-lock/releases/latest")!
+    static let latestURL = URL(string: "https://api.github.com/repos/aosmannn/albumscape-lock-releases/releases/latest")!
 
     @Published var newVersion: String?   // set when a release newer than this one exists
     @Published var status = ""
     @Published var checking = false
-    private(set) var downloadURL = URL(string: "https://github.com/aosmannn/albumscape-lock/releases/latest")!
+    private(set) var downloadURL = URL(string: "https://github.com/aosmannn/albumscape-lock-releases/releases/latest")!
 
     static var current: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0" }
     static var autoCheck: Bool {
