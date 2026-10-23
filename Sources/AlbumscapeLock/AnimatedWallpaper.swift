@@ -31,7 +31,10 @@ final class AnimatedWallpaper {
     func show(_ link: String) {
         guard Self.enabled, let url = URL(string: link) else { hide(); return }
         observeScreens()
-        if link == current, !windows.isEmpty { player?.play(); return }
+        // Already showing this one, or still loading it: leave it be. (Starting it again on every check, before it had a
+        // frame, meant it never got one, and left invisible windows piling up.)
+        if link == current { if !windows.isEmpty { player?.play() }; return }
+        dropPending()
         current = link
         generation += 1
         let mine = generation
@@ -62,9 +65,13 @@ final class AnimatedWallpaper {
             fresh.append(window)
         }
         queue.play()
+        pendingWindows = fresh
+        pendingPlayer = queue
         let oldWindows = windows, oldPlayer = player, oldLooper = looper
         pendingLoad = layerReadyObserver(for: queue) { [weak self] in
             guard let self, self.generation == mine else { return }
+            self.pendingWindows = []
+            self.pendingPlayer = nil
             self.windows = fresh
             self.player = queue
             self.looper = newLooper
@@ -81,6 +88,17 @@ final class AnimatedWallpaper {
     }
 
     private var pendingLoad: NSKeyValueObservation?
+    private var pendingWindows: [NSWindow] = []
+    private var pendingPlayer: AVQueuePlayer?
+
+    /// A load that hasn't shown yet and is no longer wanted: stop it and take its windows away.
+    private func dropPending() {
+        pendingLoad = nil
+        pendingPlayer?.pause()
+        pendingPlayer = nil
+        pendingWindows.forEach { $0.orderOut(nil) }
+        pendingWindows = []
+    }
 
     /// Calls `ready` once the player has a frame to show.
     private func layerReadyObserver(for queue: AVQueuePlayer, ready: @escaping () -> Void) -> NSKeyValueObservation {
@@ -96,7 +114,7 @@ final class AnimatedWallpaper {
 
     func hide() {
         generation += 1  // a load still in flight is dropped
-        pendingLoad = nil
+        dropPending()
         guard current != nil || !windows.isEmpty else { return }
         tearDown()
         Debug.log("animated wallpaper: stopped")
