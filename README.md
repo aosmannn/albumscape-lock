@@ -39,7 +39,7 @@ That's it. **Play a song** and lock your Mac.
 
 - **Click** the picture to shrink or enlarge it.
 - **Click the L** in the top-left corner for lyrics. When nothing is playing, **click** to skip to another animated cover.
-- **Menu bar icon:** music videos on/off, shuffle on/off, open at login.
+- **Settings:** open the app (or the menu bar icon › Settings) to choose music videos, the shuffle, lyrics, the desktop wallpaper, Spotify and the 24-hour clock.
 
 ## Good to know
 

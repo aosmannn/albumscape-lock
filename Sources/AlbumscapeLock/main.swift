@@ -342,14 +342,23 @@ final class Overlay {
 }
 
 @MainActor
-final class Delegate: NSObject, NSApplicationDelegate {
+final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = PlayerModel()
     private lazy var overlay = Overlay(model: model)
     private var item: NSStatusItem?
-    private var enabled = true
+    /// Settings > Show on the lock screen.
+    private var enabled: Bool { UserDefaults.standard.object(forKey: "showOnLock") as? Bool != false }
     private var locked = false
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        if let i = CommandLine.arguments.firstIndex(of: "--settings-test"), i + 1 < CommandLine.arguments.count {
+            let renderer = ImageRenderer(content: SettingsView(model: model, preview: {}, scrolls: false).environment(\.colorScheme, .dark))
+            renderer.scale = 2
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+            }
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--liquid-test"), i + 1 < CommandLine.arguments.count {
             // The liquid clock over a picture, into a PNG: `AlbumscapeLock --liquid-test out.png [picture]`
             let picture = CommandLine.arguments.count > i + 2 ? NSImage(contentsOfFile: CommandLine.arguments[i + 2]) : nil
@@ -399,6 +408,8 @@ final class Delegate: NSObject, NSApplicationDelegate {
             self?.overlay.hide(keepPolling: true)
         }
         buildMenu()
+        let atLogin = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: keyAELaunchedAsLogInItem)?.booleanValue == true
+        if !atLogin, !CommandLine.arguments.contains("--preview") { openSettings() }  // opened by hand: show its settings
         if CommandLine.arguments.contains("--preview") { preview() }
     }
 
@@ -420,6 +431,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
         if now && !locked { didLock() }
         else if !now && locked && Date().timeIntervalSince(lockedAt) > 3 { didUnlock() }  // the flag lags the notification
         if locked { follow() }  // the idle shuffle can start or end while the screen is locked
+        if !enabled, overlay.isShowing { overlay.hide() }  // turned off in Settings
     }
 
     private var reasserter: Timer?
@@ -514,89 +526,55 @@ final class Delegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "music.note.tv", accessibilityDescription: "Albumscape Lock")
         let menu = NSMenu()
-        let toggle = NSMenuItem(title: "Show on lock screen", action: #selector(toggleEnabled(_:)), keyEquivalent: "")
-        toggle.target = self; toggle.state = .on
-        menu.addItem(toggle)
-        let test = NSMenuItem(title: "Preview for 20 seconds", action: #selector(previewAction), keyEquivalent: "")
-        test.target = self
-        menu.addItem(test)
-        let videos = NSMenuItem(title: "Music videos (off: animated covers only)", action: #selector(toggleVideos(_:)), keyEquivalent: "")
-        videos.target = self
-        videos.state = PlayerModel.videosAllowed ? .on : .off
-        menu.addItem(videos)
-        let skip = NSMenuItem(title: "Next animated cover", action: #selector(skipCover), keyEquivalent: "")
-        skip.target = self
-        menu.addItem(skip)
-        let shuffle = NSMenuItem(title: "Shuffle animated covers when nothing plays", action: #selector(toggleShuffle(_:)), keyEquivalent: "")
-        shuffle.target = self
-        shuffle.state = PlayerModel.idleShuffleOn ? .on : .off
-        menu.addItem(shuffle)
-        let login = NSMenuItem(title: "Open at login", action: #selector(toggleLogin(_:)), keyEquivalent: "")
-        login.target = self
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
-        menu.addItem(.separator())
-        let id = NSMenuItem(title: "Spotify client ID…", action: #selector(setSpotifyClientID), keyEquivalent: "")
-        id.target = self
-        menu.addItem(id)
-        let connect = NSMenuItem(title: "Connect Spotify…", action: #selector(connectSpotify), keyEquivalent: "")
-        connect.target = self
-        menu.addItem(connect)
-        let disconnect = NSMenuItem(title: "Disconnect Spotify", action: #selector(disconnectSpotify), keyEquivalent: "")
-        disconnect.target = self
-        menu.addItem(disconnect)
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.delegate = self
         item.menu = menu
         self.item = item
     }
 
-    @objc private func setSpotifyClientID() {
-        let alert = NSAlert()
-        alert.messageText = "Spotify client ID"
-        alert.informativeText = "Create a free app at developer.spotify.com/dashboard, add the redirect address \(SpotifyAccount.redirect), and paste its Client ID here."
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.stringValue = UserDefaults.standard.string(forKey: "spotifyClientID") ?? ""
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            UserDefaults.standard.set(field.stringValue.trimmingCharacters(in: .whitespaces), forKey: "spotifyClientID")
+    /// The menu is built each time it opens, so it shows what's playing and only what applies right now.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let now = NSMenuItem(title: model.track.map { "\($0.title) — \($0.artist)" } ?? "Nothing playing", action: nil, keyEquivalent: "")
+        now.isEnabled = false
+        menu.addItem(now)
+        menu.addItem(.separator())
+        let show = NSMenuItem(title: "Show on Lock Screen", action: #selector(toggleEnabled(_:)), keyEquivalent: "")
+        show.target = self; show.state = enabled ? .on : .off
+        menu.addItem(show)
+        let preview = NSMenuItem(title: "Show It Now", action: #selector(previewAction), keyEquivalent: "")
+        preview.target = self
+        menu.addItem(preview)
+        if model.idleArt != nil {
+            let skip = NSMenuItem(title: "Next Animated Cover", action: #selector(skipCover), keyEquivalent: "")
+            skip.target = self
+            menu.addItem(skip)
         }
+        menu.addItem(.separator())
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit Albumscape Lock", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
-    @objc private func connectSpotify() { SpotifyAccount.shared.connect() }
-    @objc private func disconnectSpotify() { SpotifyAccount.shared.disconnect() }
+
+    @objc private func openSettings() { SettingsWindow.shared.show(model: model) { [weak self] in self?.preview() } }
+
+    /// Opening the app again (from Applications or Spotlight) shows its settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return false
+    }
+
 
     @objc private func skipCover() { model.skipIdle() }
-    @objc private func toggleShuffle(_ sender: NSMenuItem) {
-        let on = !PlayerModel.idleShuffleOn
-        UserDefaults.standard.set(on, forKey: "idleShuffle")
-        sender.state = on ? .on : .off
-    }
-    @objc private func toggleVideos(_ sender: NSMenuItem) {
-        let on = !PlayerModel.videosAllowed
-        UserDefaults.standard.set(on, forKey: "musicVideos")
-        sender.state = on ? .on : .off
-        model.videoSettingChanged()
-    }
 
     @objc private func toggleEnabled(_ sender: NSMenuItem) {
-        enabled.toggle()
-        sender.state = enabled ? .on : .off
+        UserDefaults.standard.set(!enabled, forKey: "showOnLock")
         if !enabled { overlay.hide() }
     }
 
     @objc private func previewAction() { preview() }
 
-    /// Off until you tick it: it shows up in System Settings, General, Login Items, where you can also remove it.
-    @objc private func toggleLogin(_ sender: NSMenuItem) {
-        do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
-        } catch { Debug.log("login item: \(error)") }
-        sender.state = SMAppService.mainApp.status == .enabled ? .on : .off
-    }
 }
 
 MainActor.assumeIsolated {

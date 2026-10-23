@@ -79,6 +79,9 @@ final class PlayerModel: ObservableObject {
     /// What the screen shows: the shuffled animation while idle, else the song's own art.
     var displayArt: AlbumArt? { idleArt ?? art }
 
+    /// The shuffle was turned off in Settings: stop it now.
+    func skipIdleOff() { updateIdle() }
+
     /// The next animated cover in the idle shuffle, now.
     func skipIdle() {
         guard idleArt != nil else { return }
@@ -112,7 +115,12 @@ final class PlayerModel: ObservableObject {
     }
 
     /// Menu bar > Music videos. Off: only the album's animated cover (or the still cover), never a video.
-    static var videosAllowed: Bool { UserDefaults.standard.object(forKey: "musicVideos") as? Bool != false }
+    /// Settings > Music videos: "always" (the video first), "noMotion" (only when the album has no animation) or "off".
+    static var videoMode: String {
+        if let mode = UserDefaults.standard.string(forKey: "videoMode") { return mode }
+        return UserDefaults.standard.object(forKey: "musicVideos") as? Bool == false ? "off" : "always"
+    }
+    static var videosAllowed: Bool { videoMode != "off" }
     private var poll: Task<Void, Never>?
     private var connectedWatch: AnyCancellable?
 

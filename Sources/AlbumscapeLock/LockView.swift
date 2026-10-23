@@ -56,9 +56,11 @@ struct LockClock: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-            let time = context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
-                .replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: "")
-                .replacingOccurrences(of: "\u{202F}AM", with: "").replacingOccurrences(of: "\u{202F}PM", with: "")
+            let time = UserDefaults.standard.bool(forKey: "clock24h")
+                ? context.date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(Locale(identifier: "en_GB")))
+                : context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
+                    .replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: "")
+                    .replacingOccurrences(of: "\u{202F}AM", with: "").replacingOccurrences(of: "\u{202F}PM", with: "")
             let t = Float(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600))
             VStack(spacing: 0) {
                 Text(context.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
@@ -211,7 +213,11 @@ struct MediaLayer: View {
         // the video only plays while the song does, and is zoomed in so its edges, where those sit, fall outside.
         let showVideo = thumbnailSide == nil || model.track?.isPlaying == true
         let videos = PlayerModel.videosAllowed  // off: only the animated cover or the still cover
-        return [showVideo && videos && model.idleArt == nil ? model.video.map(Source.youtube) : nil, model.displayArt?.motionURL.map(Source.file), videos && model.idleArt == nil ? model.art?.videoURL.map(Source.file) : nil]
+        let youtube = showVideo && videos && model.idleArt == nil ? model.video.map(Source.youtube) : nil
+        let motion = model.displayArt?.motionURL.map(Source.file)
+        let clip = videos && model.idleArt == nil ? model.art?.videoURL.map(Source.file) : nil
+        // "If no animation": the animated cover comes first, so a video only shows for albums without one
+        return (PlayerModel.videoMode == "noMotion" ? [motion, youtube, clip] : [youtube, motion, clip])
             .compactMap { $0 }.filter { !failed.contains($0.key) }
     }
 
