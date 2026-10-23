@@ -291,9 +291,12 @@ private struct SongInfo: View {
     var body: some View {
         if let track {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 16) {
+                HStack(alignment: .center, spacing: 12) {
                     Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
-                    if AudioSpectrum.shared.running, track.isPlaying { SpectrumBars(accent: accent, count: 6, barWidth: 5, spacing: 4).frame(width: 56, height: 36) }
+                    // small and level with the title's middle, like the one in Droppy's widget
+                    if AudioSpectrum.shared.running, track.isPlaying {
+                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3).frame(width: 32, height: 22)
+                    }
                 }
                 Text([track.artist, album ?? track.album].filter { !$0.isEmpty }.joined(separator: "  ·  "))
                     .font(.system(size: 18)).opacity(0.8).lineLimit(1)

@@ -372,7 +372,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ForEach(Array([[Float](repeating: 0, count: 48), levels { _ in 0.35 }, loud].enumerated()), id: \.offset) { _, l in
                     HStack(spacing: 50) {
                         SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3, levels: l).frame(width: 36, height: 24)
-                        SpectrumBars(accent: accent, count: 6, barWidth: 5, spacing: 4, levels: l).frame(width: 56, height: 36)
+                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3, levels: l).frame(width: 32, height: 22)
                     }
                 }
             }.padding(40).background(Color(white: 0.1))
