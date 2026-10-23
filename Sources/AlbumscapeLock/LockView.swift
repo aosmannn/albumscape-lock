@@ -358,14 +358,14 @@ struct MiniPlayer: View {
     var nativeGlass = false
     /// The picture behind the card (the wallpaper), when we draw the glass ourselves.
     var backdrop: GlassBackdrop?
-    @State private var showOutputs = false
+    @State private var showOutputs = UserDefaults.standard.bool(forKey: "debugOutputsOpen")  // only the layout test sets this
     @State private var outputs: [OutputDevice] = []
 
     static let size = CGSize(width: 410, height: 160)
-    /// How much taller the card gets for its output list: a heading and a row per device (at most four).
-    static func outputsExtra(_ devices: Int) -> CGFloat { 52 + CGFloat(min(max(devices, 1), 4)) * 54 }
+    /// How much taller the card gets for its output list: a divider, a heading and a row per device (at most three).
+    static func outputsExtra(_ devices: Int) -> CGFloat { 38 + CGFloat(min(max(devices, 1), 3)) * 54 }
 
-    var body: some View {
+    private var playerContent: some View {
         VStack(spacing: 10) {
             HStack(spacing: 11) {
                 MediaLayer(model: model, thumbnailSide: 54)
@@ -425,10 +425,8 @@ struct MiniPlayer: View {
                     Spacer()
                     Button {
                         outputs = AudioOutputs.list()
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            showOutputs.toggle()
-                            model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0
-                        }
+                        showOutputs.toggle()
+                        model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0
                     } label: {
                         Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
                             .frame(width: 46, height: 46)
@@ -442,8 +440,21 @@ struct MiniPlayer: View {
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
         .padding(.horizontal, 14).padding(.vertical, 13)
-        .overlay(alignment: .bottom) { if showOutputs { outputsList.transition(.opacity) } }
+        .frame(width: Self.size.width, height: Self.size.height)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            playerContent
+            if showOutputs {
+                outputsList
+                    .frame(width: Self.size.width, height: Self.outputsExtra(outputs.count), alignment: .top)
+                    .clipped()
+                    .transition(.opacity)
+            }
+        }
         .frame(width: Self.size.width, height: Self.size.height + model.outputsHeight, alignment: .top)
+        .onAppear { if showOutputs && outputs.isEmpty { outputs = AudioOutputs.list() } }
         .modifier(GlassBackground(enabled: nativeGlass == false))
         .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: CGSize(width: Self.size.width, height: Self.size.height + model.outputsHeight)) } }
         .overlay(alignment: .top) {
@@ -463,7 +474,7 @@ struct MiniPlayer: View {
         VStack(alignment: .leading, spacing: 6) {
             Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 20)
             Text("Outputs").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.6)).padding(.horizontal, 28).padding(.top, 4)
-            ForEach(outputs.prefix(4)) { device in
+            ForEach(outputs.prefix(3)) { device in
                 OutputRow(device: device, accent: accent) { chosen in
                     if AudioOutputs.select(chosen.id) { outputs = AudioOutputs.list() }
                 } setVolume: { v in
@@ -472,8 +483,7 @@ struct MiniPlayer: View {
                 }
             }
         }
-        .padding(.bottom, 14)
-        .frame(width: Self.size.width, alignment: .top)
+        .padding(.bottom, 12)
     }
 
     private var progress: Double {

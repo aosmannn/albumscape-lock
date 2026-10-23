@@ -149,11 +149,7 @@ final class Overlay {
             var frame = self.cardFrame(on: screen)
             frame.origin.y -= extra
             frame.size.height += extra
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                window.animator().setFrame(frame, display: true)
-            }
+            window.setFrame(frame, display: true)  // at once, so the window and the card inside it change size together
         }
         Debug.log("overlay shown on \(windows.count) screen(s), lock=\(onLockScreen)")
     }
@@ -377,6 +373,33 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             print("silence -> max level \(p.snapshot().max() ?? -1)")
             exit(0)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--outputs-test"), i + 2 < CommandLine.arguments.count, let picture = NSImage(contentsOfFile: CommandLine.arguments[i + 2]) {
+            // The small player with its output list open, over a picture: `--outputs-test out.png picture.jpg`
+            UserDefaults.standard.set(true, forKey: "debugOutputsOpen")
+            let screen = CGSize(width: 1470, height: 956), card = MiniPlayer.size
+            let extra = MiniPlayer.outputsExtra(AudioOutputs.list().count)
+            model.outputsHeight = extra
+            let origin = CGPoint(x: (screen.width - card.width) / 2, y: 500)
+            let m: CGFloat = 30, total = CGSize(width: card.width + m * 2, height: card.height + extra + m * 2)
+            let view = ZStack {
+                Image(nsImage: picture).resizable().scaledToFill().frame(width: screen.width, height: screen.height).clipped()
+                    .offset(x: -origin.x + m, y: -origin.y + m).frame(width: total.width, height: total.height, alignment: .topLeading).clipped()
+                MiniPlayer(model: model, nativeGlass: true, backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: origin))
+                    .frame(width: card.width, height: card.height + extra, alignment: .top).frame(width: total.width, height: total.height)
+            }.frame(width: total.width, height: total.height)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 2
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1])) }
+            UserDefaults.standard.removeObject(forKey: "debugOutputsOpen")
+            exit(0)
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--onboarding-test"), i + 1 < CommandLine.arguments.count {
+            let grid = VStack(spacing: 0) { ForEach(0..<2, id: \.self) { r in HStack(spacing: 0) { ForEach(0..<2, id: \.self) { c in OnboardingView(model: self.model, preview: {}, close: {}, startStep: r * 2 + c) } } } }
+            let renderer = ImageRenderer(content: grid.environment(\.colorScheme, .dark))
+            renderer.scale = 1
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1])) }
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--bars-test"), i + 1 < CommandLine.arguments.count {
             // The visualizer's design with made-up levels, only to look at the drawing: quiet, medium and loud.
             let accent = Color(red: 0.66, green: 0.45, blue: 0.82)
@@ -471,7 +494,10 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         buildMenu()
         let atLogin = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: keyAELaunchedAsLogInItem)?.booleanValue == true
-        if !atLogin, !CommandLine.arguments.contains("--preview"), !CommandLine.arguments.contains("--quiet") { openSettings() }  // opened by hand: show its settings
+        if !CommandLine.arguments.contains("--preview"), !CommandLine.arguments.contains("--quiet"), !atLogin || !OnboardingWindow.done {
+            // the first time the app opens, the setup guide; after that, opening it by hand shows its settings
+            if OnboardingWindow.done { openSettings() } else { OnboardingWindow.shared.show(model: model) { [weak self] in self?.preview() } }
+        }  // opened by hand: show its settings
         if CommandLine.arguments.contains("--preview") { preview() }
     }
 

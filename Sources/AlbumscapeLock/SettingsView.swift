@@ -253,6 +253,15 @@ struct SettingsView: View {
                     }
                     .padding(18)
                     Rectangle().fill(Settings.line).frame(height: 1)
+                    aboutText("What it is", "Your music, full screen on your Mac's lock screen. When a song plays in Spotify or Apple Music and you lock your Mac, its album's animated cover (Apple Music's motion art), or its music video, fills the screen, with the time, synced lyrics and a small player you can open by clicking. With nothing playing, it shuffles the animated covers of albums you've played, on the lock screen and behind your desktop icons.")
+                    aboutText("How to use it", "Lock your Mac while a song plays. Click the picture to make it small (play, next, back, the speaker list, a heart for Spotify's liked songs) and click again to enlarge it. Click the L for lyrics. With nothing playing, click anywhere to skip to another cover. Everything else is in these settings.")
+                    aboutText("Permissions, and why", "Automation (Spotify, Music): reads what's playing and sends play, pause and skip. Local Network: only if you link a Windows PC. System Audio: only for the visualizer, which measures the sound's levels; it never records or stores audio and never looks at your screen, and macOS shows its small audio dot while it listens.")
+                    aboutText("What it contacts", "Apple Music's public pages (covers and animations), LRCLIB (lyrics), YouTube (the video, in a hidden player), and Spotify only if you connect it. What it learns about your albums is saved on this Mac, in ~/Library/Application Support/AlbumscapeLock. Nothing is sent anywhere else.")
+                    aboutText("Good to know", "It draws over the lock screen with private macOS calls and reads Apple Music's public pages, so a Mac update or an Apple change can break it. It isn't on the App Store.")
+                    Rectangle().fill(Settings.line).frame(height: 1)
+                    row("Setup guide", "Go through the first-run steps again", last: false) {
+                        Button("RUN SETUP") { OnboardingWindow.shared.show(model: model, preview: preview) }.buttonStyle(OutlineButton()).pointer()
+                    }
                     row("GitHub", "Updates, the source and the advanced setup page", last: true) {
                         Button("OPEN") { NSWorkspace.shared.open(URL(string: "https://github.com/aosmannn/albumscape-lock")!) }.buttonStyle(OutlineButton()).pointer()
                     }
@@ -283,6 +292,14 @@ struct SettingsView: View {
                 HStack(spacing: 16) { text; Spacer(minLength: 8); control() }
             }
         }
+    }
+
+    private func aboutText(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.system(size: 13, weight: .semibold))
+            Text(body).font(.system(size: 12.5)).foregroundStyle(Settings.cream.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 18).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func hint(_ text: String) -> some View {
@@ -346,7 +363,7 @@ private struct SidebarItem: View {
     }
 }
 
-private struct SegmentButton: View {
+struct SegmentButton: View {
     let title: String
     let selected: Bool
     let action: () -> Void

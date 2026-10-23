@@ -197,7 +197,9 @@ final class PlayerModel: ObservableObject {
         if now != track { track = now }
         updateIdle()
         guard changedSong else { return }
-        art = nil
+        // The last song's cover and colour stay until the new ones are ready (no blank, no white flash); only its video and
+        // animation go.
+        art = art.map { last in var keep = AlbumArt(album: now?.album ?? ""); keep.coverURL = last.coverURL; keep.accent = last.accent; return keep }
         video = nil
         lyrics = []
         liked = false
@@ -268,6 +270,9 @@ final class PlayerModel: ObservableObject {
             // the song you're listening to goes to the front of Apple's queue, not behind background work
             let found = await LookupLane.$foreground.withValue(true) { await self.lookup.art(for: now) }
             art = found
+            // Keep the cover that is already on screen (Spotify's): Apple's can be a different crop of the artwork, and
+            // swapping to it a moment later showed as a flash.
+            if let cover = spotifyCover { var same = art ?? AlbumArt(album: now.album); same.coverURL = cover; art = same }
             if Task.isCancelled { return }
             incomplete = found?.complete == false
             if art?.coverURL == nil, let cover = spotifyCover {
