@@ -25,6 +25,11 @@ final class SpectrumProcessor: @unchecked Sendable {
     private let lock = NSLock()
     private var latest = [Float](repeating: 0, count: SpectrumProcessor.bandCount)
     var sampleRate: Float = 48_000
+    /// For the log: how many buffers arrived, and the loudest sample, since the last report.
+    private(set) var blocks = 0
+    private(set) var peak: Float = 0
+    private(set) var channelsSeen = 0
+    func takeReport() -> (blocks: Int, peak: Float, channels: Int) { lock.lock(); defer { lock.unlock(); blocks = 0; peak = 0 }; return (blocks, peak, channelsSeen) }
 
     init() {
         setup = vDSP_create_fftsetup(12, FFTRadix(kFFTRadix2))!
@@ -40,6 +45,7 @@ final class SpectrumProcessor: @unchecked Sendable {
     /// Mono samples in; whenever a window of 4096 is ready, the bands are updated.
     func feed(_ samples: UnsafeBufferPointer<Float>, channels: Int) {
         let frames = samples.count / max(channels, 1)
+        lock.lock(); blocks += 1; channelsSeen = channels; for v in samples { peak = max(peak, abs(v)) }; lock.unlock()
         for f in 0..<frames {
             var sum: Float = 0
             for c in 0..<channels { sum += samples[f * channels + c] }
@@ -154,8 +160,14 @@ final class AudioSpectrum: ObservableObject {
         procID = proc
         guard AudioDeviceStart(aggregate, proc) == noErr else { stop(); return }
         running = true
+        var ticks = 0
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { guard let self else { return }; self.bands = self.processor.snapshot() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.bands = self.processor.snapshot()
+                ticks += 1
+                if ticks % 90 == 0 { let r = self.processor.takeReport(); Debug.log("spectrum: \(r.blocks) audio buffers in 3 s, loudest sample \(String(format: "%.3f", r.peak)), \(r.channels) channel(s) per buffer, \(Int(self.processor.sampleRate)) Hz") }
+            }
         }
         Debug.log("spectrum: listening to the system audio")
     }
@@ -196,7 +208,7 @@ struct SpectrumBars: View {
                 // merge neighbouring bands when fewer bars are asked for
                 let from = i * bands.count / n, to = max(from + 1, (i + 1) * bands.count / n)
                 let level = CGFloat(bands[from..<to].max() ?? 0)
-                let height = max(barW, level * size.height)  // silence is a row of dots, not nothing
+                let height = max(2, level * size.height)  // silence is a hairline, not nothing
                 let rect = CGRect(x: CGFloat(i) * (barW + spacing), y: size.height - height, width: barW, height: height)
                 context.fill(Path(roundedRect: rect, cornerRadius: barW / 2),
                              with: .linearGradient(Gradient(colors: [accent, accent.opacity(0.55)]), startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: size.height)))
