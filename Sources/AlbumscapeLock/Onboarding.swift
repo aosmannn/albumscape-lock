@@ -18,7 +18,7 @@ final class OnboardingWindow {
 
     func show(model: PlayerModel, preview: @escaping () -> Void) {
         window?.close()
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 600),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 640),
                          styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
@@ -74,7 +74,7 @@ struct OnboardingView: View {
             footer
         }
         .padding(.horizontal, 44).padding(.top, 52).padding(.bottom, 30)
-        .frame(width: 640, height: 600, alignment: .topLeading)
+        .frame(width: 640, height: 640, alignment: .topLeading)
         .background(
             ZStack { Settings.ink; RadialGradient(colors: [Color(red: 0.55, green: 0.12, blue: 0.08).opacity(step == 0 ? 0.35 : 0.0), .clear], center: .top, startRadius: 0, endRadius: 420) }
         )
@@ -93,7 +93,7 @@ struct OnboardingView: View {
             }
             .frame(maxWidth: .infinity).padding(.bottom, 14)
             Text("ALBUMSCAPE LOCK").font(.system(size: 11, design: .monospaced)).kerning(2).opacity(0.6)
-            Text("YOUR MUSIC,\nFULL SCREEN.").font(.system(size: 54, weight: .black).width(.condensed)).lineSpacing(-8)
+            Text("YOUR MUSIC,\nFULL SCREEN.").font(.system(size: 54, weight: .black).width(.condensed)).lineSpacing(-8).fixedSize(horizontal: false, vertical: true)
             Text("Apple Music's animated covers and music videos fill your lock screen the moment you lock your Mac, for whatever you're playing.")
                 .font(.system(size: 15)).foregroundStyle(Settings.cream.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(Settings.line).frame(height: 1)
@@ -154,12 +154,12 @@ struct OnboardingView: View {
     }
 
     private var yours: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             stepLabel("STEP 3 OF 4")
             Text("MAKE IT YOURS").font(.system(size: 44, weight: .black).width(.condensed))
             Text("You can change any of this later in Settings.").font(.system(size: 15)).foregroundStyle(Settings.cream.opacity(0.75))
-            card { choice("Show on the lock screen", "Your music fills it while a song plays") { PillToggleBinding($showOnLock) } }
-            card {
+            card(tight: true) { choice("Show on the lock screen", "Your music fills it while a song plays") { PillToggleBinding($showOnLock) } }
+            card(tight: true) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Music videos").font(.system(size: 14, weight: .semibold))
                     Text("A clip of the song's official video").font(.system(size: 12)).foregroundStyle(Settings.cream.opacity(0.55))
@@ -171,9 +171,9 @@ struct OnboardingView: View {
                     }.overlay(RoundedRectangle(cornerRadius: 8).stroke(Settings.line)).clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
-            card { choice("When nothing's playing", "Shuffle the animated covers of albums you've played") { PillToggleBinding($idleShuffle) } }
-            card { choice("Animated wallpaper", "The animated cover behind your desktop icons too") { PillToggleBinding($animatedWallpaper) } }
-            card {
+            card(tight: true) { choice("When nothing's playing", "Shuffle the animated covers of albums you've played") { PillToggleBinding($idleShuffle) } }
+            card(tight: true) { choice("Animated wallpaper", "The animated cover behind your desktop icons too") { PillToggleBinding($animatedWallpaper) } }
+            card(tight: true) {
                 choice("Open at login", "Starts quietly in the menu bar") {
                     PillToggleBinding(Binding(get: { openAtLogin }, set: { on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { Debug.log("login item: \(error)") }
@@ -217,8 +217,8 @@ struct OnboardingView: View {
         Text(text).font(.system(size: 11, design: .monospaced)).kerning(2).opacity(0.55)
     }
 
-    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        content().padding(16).frame(maxWidth: .infinity, alignment: .leading)
+    private func card<Content: View>(tight: Bool = false, @ViewBuilder _ content: () -> Content) -> some View {
+        content().padding(tight ? 12 : 16).frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 4).fill(Settings.card))
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Settings.line))
     }
