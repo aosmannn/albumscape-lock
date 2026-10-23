@@ -465,7 +465,7 @@ extension View {
     /// macOS 26's Liquid Glass, as Droppy uses; a blurred material before that.
     @ViewBuilder func liquidGlass(cornerRadius: CGFloat) -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
+            self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
         } else {
             self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
@@ -508,5 +508,28 @@ struct LiquidGlassCard: View {
             .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(0.2, -0.1), .float(0)),
                          maxSampleOffset: CGSize(width: 60, height: 60))
             .frame(width: size.width, height: size.height)
+    }
+}
+
+/// The small player on the lock screen with Apple's real Liquid Glass: the wallpaper fills the window (it is the same
+/// picture the lock screen shows, so nothing looks different), and the player card floats on it with .glassEffect, which
+/// bends and lights the wallpaper behind it the way the system's own glass does.
+struct MiniScene: View {
+    @ObservedObject var model: PlayerModel
+    let wallpaper: NSImage?
+    let cardCenter: CGPoint
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if let wallpaper {
+                Image(nsImage: wallpaper).resizable().aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+            } else {
+                Color.black
+            }
+            MiniPlayer(model: model, nativeGlass: false)
+                .position(cardCenter)
+        }
+        .ignoresSafeArea()
     }
 }

@@ -207,7 +207,7 @@ final class Overlay {
         // The way Apple's Liquid Glass guide builds it: a SwiftUI view with .glassEffect(.regular) floating over the
         // content, in a clear window. `glassMode`: liquid (the default: the glass drawn here over the wallpaper), swiftui (macOS's
         // own glassEffect) or appkit (NSGlassEffectView), to compare the three.
-        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "liquid"
+        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "system"
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)
             let origin = CGPoint(x: card.minX - screen.frame.minX, y: screen.frame.maxY - card.maxY)
@@ -305,8 +305,21 @@ final class Overlay {
                     guard let self, !self.model.expanded else { return }
                     window.isOpaque = false
                     window.backgroundColor = .clear
-                    window.contentView = self.frostedCard()
-                    window.setFrame(card, display: true)
+                    if (UserDefaults.standard.string(forKey: "glassMode") ?? "system") == "system", #available(macOS 26.0, *) {
+                        // Apple's own Liquid Glass, for real: it can only bend what is in its own window, so the window
+                        // stays full screen with your wallpaper drawn in it (the same picture the lock screen shows), and
+                        // the player floats on it with .glassEffect.
+                        let screen = self.screens[index]
+                        let wallpaper = NSWorkspace.shared.desktopImageURL(for: screen).flatMap { NSImage(contentsOf: $0) }
+                        let center = CGPoint(x: card.midX - full.minX, y: full.maxY - card.midY)
+                        window.isOpaque = true
+                        window.backgroundColor = .black
+                        window.contentView = TapHostingView(rootView: MiniScene(model: self.model, wallpaper: wallpaper, cardCenter: center))
+                        window.setFrame(full, display: true)
+                    } else {
+                        window.contentView = self.frostedCard()
+                        window.setFrame(card, display: true)
+                    }
                     window.alphaValue = 0
                     window.orderFrontRegardless()
                     NSAnimationContext.runAnimationGroup { context in
