@@ -73,6 +73,11 @@ final class Overlay {
 
     var isShowing: Bool { !windows.isEmpty }
 
+    private var screenSignature = ""
+    private static func signature() -> String { NSScreen.screens.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY)),\(Int($0.frame.width)),\(Int($0.frame.height))" }.joined(separator: ";") }
+    /// True when the screens now are not the ones this overlay was built for (a monitor plugged in or out).
+    func screensChanged() -> Bool { Self.signature() != screenSignature }
+
     private var screens: [NSScreen] = []
     private var infoWindows: [NSWindow] = []
     private var modeWatch: AnyCancellable?
@@ -82,6 +87,7 @@ final class Overlay {
         guard windows.isEmpty else { return }
         model.expanded = true
         model.start()
+        screenSignature = Self.signature()
         // Settings > Displays: every screen, or just the main one (the others keep the normal lock screen).
         screens = UserDefaults.standard.string(forKey: "displays") == "main" ? Array(NSScreen.screens.prefix(1)) : NSScreen.screens
         for screen in screens {
@@ -488,7 +494,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.locked, self.overlay.isShowing else { return }
+                // our own windows also make macOS send this: only a real change in the set of screens counts
+                guard let self, self.locked, self.overlay.isShowing, self.overlay.screensChanged() else { return }
                 Debug.log("displays changed: rebuilding the lock screen")
                 self.overlay.hide(keepPolling: true)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.follow() }
