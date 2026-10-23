@@ -71,35 +71,21 @@ struct LockClock: View {
         }
     }
 
-    /// The time in the player card's glass (Shaders/Liquid.metal, textGlass): the album art behind the clock, cut to the
-    /// digits' shape and bent at their edges. Still; the digits roll over when the minute changes.
+    /// The time as clear glass over whatever is behind it (video, animation or cover): the picture shows through the
+    /// digits untouched, and the glass only adds light (Shaders/Liquid.metal: glassShine) and a little edge shade
+    /// (liquidShade). Still; the digits roll over when the minute changes.
     private func glassTime(_ time: String) -> some View {
         let digits = Text(time)
             .font(.system(size: 124, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white)
             .contentTransition(.numericText())
             .animation(.smooth(duration: 0.7), value: time)
             .padding(8)
-        let screen = NSScreen.main?.frame.size ?? CGSize(width: 1470, height: 956)
-        return digits.hidden()
-            .overlay {
-                GeometryReader { geo in
-                    let frame = geo.frame(in: .global)
-                    Group {
-                        if let cover = model.displayArt?.coverURL {
-                            AsyncImage(url: cover) { $0.resizable().aspectRatio(contentMode: .fill) } placeholder: { Color.white.opacity(0.35) }
-                                .frame(width: screen.width, height: screen.height).clipped()
-                                .offset(x: -frame.minX, y: -frame.minY)
-                        } else {
-                            LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.25)], startPoint: .top, endPoint: .bottom)
-                        }
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
-                    .clipped()
-                }
-                .mask(digits.foregroundStyle(.white))
-                .layerEffect(ShaderLibrary.textGlass(), maxSampleOffset: CGSize(width: 10, height: 10))
-            }
-            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        return ZStack {
+            digits.layerEffect(ShaderLibrary.liquidShade(.float(0)), maxSampleOffset: CGSize(width: 3, height: 3))
+            // plain see-through drawing: the clock sits in its own window over the video's, where blend modes can't reach
+            digits.layerEffect(ShaderLibrary.glassShine(), maxSampleOffset: CGSize(width: 3, height: 3))
+        }
     }
 }
 

@@ -40,7 +40,7 @@ static float2 edgeGradient(float2 p, SwiftUI::Layer layer) {
     float2 g = edgeGradient(position, layer);
     float edge = clamp(length(g) * 1.3, 0.0, 1.0);
     float away = clamp(dot(normalize(g + 1e-5), normalize(float2(-0.45, -0.9))), 0.0, 1.0);
-    float shade = edge * away * 0.35 + 0.04;
+    float shade = edge * (0.22 + away * 0.28) + 0.035;  // a thin dark outline too, so the digits read on bright pictures
     return half4(0, 0, 0, half(shade)) * half(a);
 }
 
@@ -115,4 +115,19 @@ static float roundedBox(float2 p, float2 halfSize, float r) {
     col += half3(edge * max(facing, 0.0) * 0.75);
     col *= half(1.0 - edge * max(-facing, 0.0) * 0.35);
     return half4(col * a, a);
+}
+
+// MARK: - The clock's glass, see-through
+// The clock sits over a moving video, which a shader can't read. So the digits stay clear and let the real picture show
+// through; this only adds the light a piece of glass would: a gentle lift over the whole digit, a bright edge where it
+// faces the light and a fainter one opposite.
+[[ stitchable ]] half4 glassShine(float2 position, SwiftUI::Layer layer) {
+    float a = layer.sample(position).a;
+    if (a < 0.01) return half4(0);
+    float2 g = edgeGradient(position, layer);
+    float edge = clamp(length(g) * 1.3, 0.0, 1.0);
+    float2 outward = -g / max(length(g), 1e-5);
+    float facing = dot(outward, normalize(float2(-0.5, -0.86)));
+    float light = 0.05 + edge * (0.12 + max(facing, 0.0) * 0.6 + max(-facing, 0.0) * 0.2);
+    return half4(half3(light), half(light)) * half(a);
 }
