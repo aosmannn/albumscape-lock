@@ -504,35 +504,23 @@ struct GlassBackdrop {
     let origin: CGPoint  // the card's top-left corner on the screen
 }
 
-/// Our Liquid Glass (Shaders/Liquid.metal, glassLens): the wallpaper behind the card, softly blurred, bent at the rim
-/// like thick glass, and lit from wherever the pointer is.
+/// Our Liquid Glass (Shaders/Liquid.metal, glassLens): the wallpaper behind the card, lightly softened, magnified like a
+/// thick slab of glass and bent strongly at its curved rim, with thin bright edges. It doesn't follow the pointer.
 struct LiquidGlassCard: View {
     let backdrop: GlassBackdrop
     let size: CGSize
     private let radius: CGFloat = 40
-    @State private var light = CGPoint(x: 0.2, y: -0.1)  // upper left until the pointer comes over the card
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-            let t = Float(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600))
-            Image(nsImage: backdrop.image).resizable().scaledToFill()
-                .frame(width: backdrop.screenSize.width, height: backdrop.screenSize.height).clipped()
-                .blur(radius: 3.5)
-                .saturation(1.25)
-                .offset(x: -backdrop.origin.x, y: -backdrop.origin.y)
-                .frame(width: size.width, height: size.height, alignment: .topLeading)
-                .clipped()
-                .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(light), .float(t)),
-                             maxSampleOffset: CGSize(width: 30, height: 30))
-        }
-        .frame(width: size.width, height: size.height)
-        .onContinuousHover { phase in
-            switch phase {
-            case .active(let point):
-                withAnimation(.easeOut(duration: 0.25)) { light = CGPoint(x: point.x / size.width, y: point.y / size.height) }
-            case .ended:
-                withAnimation(.easeOut(duration: 0.6)) { light = CGPoint(x: 0.2, y: -0.1) }
-            }
-        }
+        Image(nsImage: backdrop.image).resizable().scaledToFill()
+            .frame(width: backdrop.screenSize.width, height: backdrop.screenSize.height).clipped()
+            .blur(radius: 2)
+            .saturation(1.2)
+            .offset(x: -backdrop.origin.x, y: -backdrop.origin.y)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .clipped()
+            .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(0.2, -0.1), .float(0)),
+                         maxSampleOffset: CGSize(width: 60, height: 60))
+            .frame(width: size.width, height: size.height)
     }
 }

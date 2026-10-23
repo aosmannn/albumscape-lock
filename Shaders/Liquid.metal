@@ -62,31 +62,30 @@ static float roundedBox(float2 p, float2 halfSize, float r) {
     if (d > 0.75) return half4(0);
     float inside = -d;
 
-    // which way the edge faces (outward), from the distance field
     float e = 1.0;
     float2 n = float2(roundedBox(p + float2(e, 0), half_, radius) - roundedBox(p - float2(e, 0), half_, radius),
                       roundedBox(p + float2(0, e), half_, radius) - roundedBox(p - float2(0, e), half_, radius));
-    n = n / max(length(n), 1e-4);
+    n = n / max(length(n), 1e-4);  // the edge's outward direction
 
-    // the rim: the picture is drawn in from further inside, more strongly toward the edge, so it magnifies and bends
-    float band = 34.0;
+    // A thick slab: the whole picture is magnified a little toward the middle, and much more at the rim, where it
+    // bends like the curved edge of a lens.
+    float band = 40.0;
     float k = clamp(1.0 - inside / band, 0.0, 1.0);
-    float bend = k * k * k * 34.0;
-    float2 source = position - n * bend;
-    float split = k * k * 1.8;  // colours part slightly where it bends most
+    float bend = pow(k, 2.4) * 46.0;
+    float2 source = half_ + p * 0.96 - n * bend;
+    float split = k * k * 2.2;
     half3 col = half3(layer.sample(source - n * split).r, layer.sample(source).g, layer.sample(source + n * split).b);
-    col *= 0.80;  // a little darker than what's behind, so white text reads
+    col = col * 0.9 + 0.04;
 
-    // light from the pointer (or the upper left until the pointer comes by)
-    float2 lightAt = light * size;
-    float2 toLight = lightAt - position;
-    float near = exp(-dot(toLight, toLight) / (size.x * size.x * 0.10));
-    float facing = dot(n, normalize(toLight + 1e-4));  // edges turned toward the light catch it
-    float rim = smoothstep(2.4, 0.0, inside) * (0.30 + 0.70 * max(facing, 0.0));
-    float glow = smoothstep(12.0, 0.0, inside) * 0.07;
-    // a faint sheen that drifts across now and then, as light moves over real glass
-    float sweep = pow(max(0.0, 1.0 - abs(fract((p.x + p.y * 0.5) / size.x * 0.7 - t * 0.04) * 2.0 - 1.0) * 6.0), 2.0) * 0.05;
-    col += half3(rim * 0.85 + glow + near * 0.12 + sweep);
+    // light: a thin bright edge on the upper left and a fainter one on the lower right (light passing through the
+    // glass and leaving by the far side), a narrow shade just inside the rim for thickness, and a soft lift at the top.
+    float2 lightDir = normalize(float2(-0.55, -0.85));
+    float facing = dot(n, lightDir);
+    float edgeLine = smoothstep(1.8, 0.0, inside);
+    float rim = edgeLine * (max(facing, 0.0) * 0.95 + max(-facing, 0.0) * 0.45 + 0.12);
+    float shade = smoothstep(14.0, 3.0, inside) * smoothstep(1.0, 3.0, inside) * 0.16;
+    float top = smoothstep(size.y * 0.55, 0.0, position.y) * 0.06;
+    col = col * half(1.0 - shade) + half3(rim + top);
 
     float alpha = smoothstep(0.75, -0.75, d);
     return half4(col * alpha, alpha);
