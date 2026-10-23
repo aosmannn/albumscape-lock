@@ -24,8 +24,22 @@ struct YouTubeEmbed: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
+    /// One web process for every video, and a page loaded at launch, so the YouTube script is already cached when the
+    /// first video is asked for.
+    static let processPool = WKProcessPool()
+    @MainActor private static var warm: WKWebView?
+    @MainActor static func prewarm() {
+        guard warm == nil else { return }
+        let config = WKWebViewConfiguration()
+        config.processPool = processPool
+        let view = WKWebView(frame: .zero, configuration: config)
+        view.loadHTMLString("<html><body><script src='https://www.youtube.com/iframe_api'></script></body></html>", baseURL: URL(string: "https://albumscape.vercel.app"))
+        warm = view
+    }
+
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        config.processPool = Self.processPool
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.add(context.coordinator, name: "yt")
         let view = WKWebView(frame: .zero, configuration: config)
@@ -78,7 +92,7 @@ struct YouTubeEmbed: NSViewRepresentable {
         """
         <!doctype html><html><head><meta name="referrer" content="strict-origin-when-cross-origin"><style>
         html,body{margin:0;height:100%;overflow:hidden;background:#000}
-        body{transition:opacity .3s ease}
+        body{opacity:0;transition:opacity .3s ease}  /* nothing of YouTube shows until the page says so */
         .p{position:absolute;top:50%;left:50%;width:177.78vh;min-width:100vw;height:56.25vw;min-height:100vh;
            transform:translate(-50%,-50%) scale(1.15);pointer-events:none;opacity:0;transition:opacity .9s ease}
         .p.on{opacity:1}
@@ -95,7 +109,7 @@ struct YouTubeEmbed: NSViewRepresentable {
             events:{onReady:function(e){e.target.mute();e.target.playVideo();noCaptions(e.target)},
               onStateChange:function(e){
                 if(e.data===1){noCaptions(e.target);if(onPlaying)onPlaying(e.target)}
-                else if(e.target===cur&&!switching&&e.data!==-1){clearTimeout(liveTimer);send('hide')}  // loading, paused, ended: back to the cover
+                else if(e.target===cur&&!switching&&e.data!==-1){clearTimeout(liveTimer);document.body.style.opacity=0;send('hide')}  // loading, paused, ended: the page goes clear at once, back to the cover
                 if(e.data===0){e.target.seekTo(0);e.target.playVideo()}  // only if the hand-over was too late
               },
               onError:function(){send('error')}}});
@@ -105,7 +119,9 @@ struct YouTubeEmbed: NSViewRepresentable {
             if(!first){first=true;document.getElementById('a').classList.add('on')}
             // YouTube draws its own title, spinner and pause screen whenever the video starts or loads (about 4 s). The
             // cover (or the animated cover) stays on screen until the video has been playing steadily, as on Windows.
-            clearTimeout(liveTimer);liveTimer=setTimeout(function(){if(cur&&!switching)send('ready')},3000);
+            clearTimeout(liveTimer);liveTimer=setTimeout(function(){
+              if(cur&&!switching&&!faded){document.body.style.opacity=1;send('ready')}
+            },2800);
           });
           setInterval(tick,300);
         }
@@ -141,13 +157,18 @@ struct YouTubeEmbed: NSViewRepresentable {
         // YouTube's own pause and play symbols are never on screen (the cover shows through instead).
         function setPlaying(p,seek){
           wantPlaying=p;if(!cur||switching)return;
-          clearTimeout(pauseTimer);clearTimeout(showTimer);
+          clearTimeout(pauseTimer);clearTimeout(showTimer);clearTimeout(liveTimer);
+          document.body.style.opacity=0;  // always out of sight first: YouTube draws its II and play symbols on these changes
           if(!p){
-            document.body.style.opacity=0;
             pauseTimer=setTimeout(function(){try{cur.pauseVideo()}catch(x){}},320);
           }else{
-            try{cur.seekTo(seek,true);cur.playVideo()}catch(x){}
-            if(!faded)showTimer=setTimeout(function(){document.body.style.opacity=1},1200);
+            var wait=1800;
+            try{
+              // only jump if the video is really out of step: a seek makes YouTube draw its spinner for about 4 s
+              if(Math.abs(cur.getCurrentTime()-seek)>2.5){cur.seekTo(seek,true);wait=4600}
+              cur.playVideo();
+            }catch(x){}
+            if(!faded)showTimer=setTimeout(function(){document.body.style.opacity=1;send('ready')},wait);
           }
         }
         </script></body></html>

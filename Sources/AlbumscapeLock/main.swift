@@ -425,6 +425,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             exit(0)
         }
         Debug.log("launched, skylight available: \(LockSpace.isAvailable)")
+        YouTubeEmbed.prewarm()
         if UserDefaults.standard.bool(forKey: "spectrumSelfTest") {
             // One-off check that the audio tap hears the Mac's own sound: listens while two soft system sounds play.
             UserDefaults.standard.removeObject(forKey: "spectrumSelfTest")

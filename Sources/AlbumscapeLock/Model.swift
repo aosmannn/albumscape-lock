@@ -220,7 +220,7 @@ final class PlayerModel: ObservableObject {
         AlbumDB.shared.noteListened(now)
         // The video lookup waits a moment first, so skipping through several songs only looks up the one you land on.
         let clipTask = Task<YouTubeVideo?, Never> { [youtube] in
-            try? await Task.sleep(for: .milliseconds(250))
+            try? await Task.sleep(for: .milliseconds(120))
             if Task.isCancelled || !Self.videosAllowed { return nil }
             return await youtube.video(for: now)
         }
