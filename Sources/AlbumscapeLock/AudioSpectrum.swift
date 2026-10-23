@@ -2,7 +2,7 @@
 //  AudioSpectrum.swift
 //
 //  A real audio visualizer, the way Droppy and Apple's players do it: the sound the Mac is actually playing is read
-//  through a Core Audio "tap" (macOS asks once for System Audio permission), split into frequency bands with an FFT
+//  through a Core Audio "tap" (macOS asks once for System Audio permission; the screen is never captured), split into frequency bands with an FFT
 //  (Accelerate), smoothed, and drawn. Nothing is made up: silence draws flat bars. The audio is never recorded or stored,
 //  only measured, and only while the player is on screen.
 //
@@ -97,8 +97,8 @@ final class AudioSpectrum: ObservableObject {
     @Published private(set) var bands = [Float](repeating: 0, count: SpectrumProcessor.bandCount)
     @Published private(set) var running = false
 
-    /// Off unless you turn it on in Settings: it listens to the Mac's sound, and macOS shows its recording indicator while it does.
-    static var enabled: Bool { UserDefaults.standard.bool(forKey: "audioVisualizer") }
+    /// On by default; Settings turns it off.
+    static var enabled: Bool { UserDefaults.standard.object(forKey: "audioVisualizer") as? Bool != false }
 
     private let processor = SpectrumProcessor()
     private var tapID = AudioObjectID(kAudioObjectUnknown)
@@ -110,26 +110,12 @@ final class AudioSpectrum: ObservableObject {
     /// While this time is in the future the visualizer keeps listening even when the player isn't on screen (for the
     /// Allow button and the self-test).
     var holdUntil = Date.distantPast
-    private var screenAudio: ScreenAudio?
-    private var starting = false
 
-    /// ScreenCaptureKit's audio first (what Droppy uses); if macOS won't give it, the Core Audio tap.
+    /// Listens to the Mac's sound through a Core Audio tap: audio only, never the screen. macOS shows its audio indicator
+    /// (the small purple dot) while this runs.
     func start() {
-        guard !running, !starting else { return }
-        starting = true
-        let capture = ScreenAudio(processor: processor)
-        Task { @MainActor in
-            defer { starting = false }
-            do {
-                try await capture.start()
-                screenAudio = capture
-                running = true
-                beginReporting(source: "screen audio")
-            } catch {
-                Debug.log("spectrum: screen audio not available (\(error.localizedDescription)); trying the audio tap")
-                startTap()
-            }
-        }
+        guard !running else { return }
+        startTap()
     }
 
     private func beginReporting(source: String) {
@@ -207,7 +193,6 @@ final class AudioSpectrum: ObservableObject {
 
     func stop() {
         timer?.invalidate(); timer = nil
-        screenAudio?.stop(); screenAudio = nil
         if let procID, aggregateID != kAudioObjectUnknown { AudioDeviceStop(aggregateID, procID); AudioDeviceDestroyIOProcID(aggregateID, procID) }
         procID = nil
         if aggregateID != kAudioObjectUnknown { AudioHardwareDestroyAggregateDevice(aggregateID); aggregateID = AudioObjectID(kAudioObjectUnknown) }

@@ -94,7 +94,7 @@ struct SettingsView: View {
     @AppStorage("animatedWallpaper") private var animatedWallpaper = true
     @AppStorage("coverWallpaper") private var coverWallpaper = false
     @AppStorage("clock24h") private var clock24h = false
-    @AppStorage("audioVisualizer") private var audioVisualizer = false
+    @AppStorage("audioVisualizer") private var audioVisualizer = true
     @AppStorage("spotifyClientID") private var clientID = ""
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -187,7 +187,7 @@ struct SettingsView: View {
                         segments(["Leave it", "My albums"], selected: idleShuffle ? 1 : 0) { idleShuffle = $0 == 1; model.skipIdleOff() }
                     }
                     row("Lyrics", "Synced lyrics when available (click the L on the lock screen)") { toggle($model.lyricsOn) }
-                    row("Audio visualizer", "Bars that move with the real sound, in the song's colour. Off by default: while it listens, macOS shows its screen-and-audio recording indicator") {
+                    row("Audio visualizer", "Bars that move with the real sound, in the song's colour. Listens to audio only, never your screen; macOS shows a small audio dot while it does") {
                         HStack(spacing: 12) {
                             Button("ALLOW") { AudioSpectrum.shared.requestAccess() }.buttonStyle(OutlineButton()).pointer()
                             toggle($audioVisualizer)

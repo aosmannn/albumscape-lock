@@ -10,7 +10,6 @@
 <key>LSUIElement</key><true/>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSAppleEventsUsageDescription</key><string>Albumscape Lock reads what Spotify and Music are playing so it can show the matching video on your lock screen.</string>
-<key>NSScreenCaptureUsageDescription</key><string>Albumscape Lock measures the sound that is playing so the visualizer moves with the real music. The screen is not captured or stored.</string>
 <key>NSAudioCaptureUsageDescription</key><string>Albumscape Lock measures the sound that is playing so the visualizer on your lock screen moves with the real music. The audio is never recorded or stored.</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoadsInWebContent</key><true/></dict>
 </dict></plist>
