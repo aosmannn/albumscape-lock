@@ -19,6 +19,8 @@ final class AnimatedWallpaper {
     }
 
     private var windows: [NSWindow] = []
+    /// Every window ever made, so none can be left behind invisible.
+    private var everyWindow: [NSWindow] = []
     private var player: AVQueuePlayer?
     private var looper: AVPlayerLooper?
     private var current: String?
@@ -35,6 +37,8 @@ final class AnimatedWallpaper {
         // frame, meant it never got one, and left invisible windows piling up.)
         if link == current { if !windows.isEmpty { player?.play() }; return }
         dropPending()
+        purge(keeping: windows)
+        Debug.log("animated wallpaper: loading ...\(link.suffix(24))")
         current = link
         generation += 1
         let mine = generation
@@ -53,6 +57,7 @@ final class AnimatedWallpaper {
             window.backgroundColor = .clear
             window.isOpaque = false
             window.alphaValue = 0
+            everyWindow.append(window)
             let view = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
             view.wantsLayer = true
             let layer = AVPlayerLayer(player: queue)
@@ -75,14 +80,20 @@ final class AnimatedWallpaper {
             self.windows = fresh
             self.player = queue
             self.looper = newLooper
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.35
-                fresh.forEach { $0.animator().alphaValue = 1 }
-            }, completionHandler: {
+            for window in fresh {
+                window.alphaValue = 1
+                if let layer = window.contentView?.layer {  // the fade is on the picture itself
+                    layer.opacity = 1
+                    let fade = CABasicAnimation(keyPath: "opacity"); fade.fromValue = 0; fade.toValue = 1; fade.duration = 0.4
+                    layer.add(fade, forKey: "fade")
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 oldPlayer?.pause()
                 oldWindows.forEach { $0.orderOut(nil) }
                 _ = oldLooper
-            })
+                self.purge(keeping: self.windows)
+            }
             Debug.log("animated wallpaper: playing")
         }
     }
@@ -92,11 +103,17 @@ final class AnimatedWallpaper {
     private var pendingPlayer: AVQueuePlayer?
 
     /// A load that hasn't shown yet and is no longer wanted: stop it and take its windows away.
+    /// Takes away every window we ever made except these.
+    private func purge(keeping keep: [NSWindow]) {
+        for window in everyWindow where !keep.contains(where: { $0 === window }) { window.orderOut(nil); window.contentView = nil }
+        everyWindow = everyWindow.filter { w in keep.contains { $0 === w } }
+    }
+
     private func dropPending() {
         pendingLoad = nil
         pendingPlayer?.pause()
         pendingPlayer = nil
-        pendingWindows.forEach { $0.orderOut(nil) }
+        pendingWindows.forEach { $0.orderOut(nil); $0.contentView = nil }
         pendingWindows = []
     }
 
