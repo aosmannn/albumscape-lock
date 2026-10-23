@@ -176,6 +176,20 @@ final class Overlay {
         Debug.log("spaces after: ours in \(windows.map { LockSpace.spaces(of: $0.windowNumber) })")
     }
 
+    /// One picture of this app's own windows (the art, then the song info over it), for the website's clips. Only our
+    /// windows are drawn: nothing else on the screen is read.
+    func frame() -> CGImage? {
+        typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+        guard let pointer = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGWindowListCreateImage") else { return nil }
+        let capture = unsafeBitCast(pointer, to: Capture.self)
+        let parts = (windows + infoWindows).compactMap { capture(.null, 8, UInt32($0.windowNumber), 1)?.takeRetainedValue() }
+        guard let base = parts.first,
+              let context = CGContext(data: nil, width: base.width, height: base.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+        for part in parts { context.draw(part, in: CGRect(x: 0, y: 0, width: base.width, height: base.height)) }
+        return context.makeImage()
+    }
+
     private static func snapshot(_ window: NSWindow, name: String) {
         typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
         guard let pointer = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGWindowListCreateImage") else {
@@ -509,6 +523,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if OnboardingWindow.done { openSettings() } else { OnboardingWindow.shared.show(model: model) { [weak self] in self?.preview() } }
         }  // opened by hand: show its settings
         if CommandLine.arguments.contains("--preview") { preview() }
+        if CommandLine.arguments.contains("--record") { record(CommandLine.arguments) }
     }
 
     private var watch: AnyCancellable?
@@ -619,6 +634,35 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard let self, self.locked, self.pausedSince == since, self.model.track?.isPlaying != true, self.model.idleArt == nil else { return }
                 self.overlay.hide(keepPolling: true)
                 self.pausedSince = nil
+            }
+        }
+    }
+
+    /// `--record <folder> <seconds> <delay> [--mini]`: shows it as a preview and writes 20 pictures a second of our own
+    /// windows into the folder (after `delay` seconds, for the song to load), then quits. ffmpeg turns them into a clip.
+    private func record(_ args: [String]) {
+        guard let i = args.firstIndex(of: "--record"), i + 3 < args.count else { return }
+        let folder = URL(fileURLWithPath: args[i + 1]), seconds = Double(args[i + 2]) ?? 10, delay = Double(args[i + 3]) ?? 8
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        overlay.show(onLockScreen: false)
+        if args.contains("--mini") { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.model.expanded = false } }
+        let writer = DispatchQueue(label: "albumscape.frames")
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            var n = 0
+            let total = Int(seconds * 20)
+            Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
+                MainActor.assumeIsolated {
+                    guard let self, n < total else {
+                        timer.invalidate()
+                        writer.async { DispatchQueue.main.async { self?.overlay.hide(); NSApp.terminate(nil) } }
+                        return
+                    }
+                    if let image = self.overlay.frame() {
+                        let url = folder.appendingPathComponent(String(format: "f%04d.jpg", n))
+                        writer.async { try? NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.88])?.write(to: url) }
+                    }
+                    n += 1
+                }
             }
         }
     }
