@@ -78,6 +78,20 @@ final class Overlay {
     private var modeWatch: AnyCancellable?
     private var outputsWatch: AnyCancellable?
     private var popups: [NSWindow] = []
+    /// When the screen last woke from sleep: the art then fades in over a couple of seconds instead of cutting in.
+    static var lastWake: Date?
+    private static var wakeFadeOn: Bool { UserDefaults.standard.object(forKey: "wakeFade") as? Bool ?? true }
+
+    /// Everything on the lock screen from clear to full over `duration`.
+    func fadeIn(duration: TimeInterval = 2) {
+        let all = windows + infoWindows
+        all.forEach { $0.alphaValue = 0 }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            all.forEach { $0.animator().alphaValue = 1 }
+        }
+    }
     private var onLock = false
 
     private func setOutputsPopup(_ open: Bool) {
@@ -170,6 +184,7 @@ final class Overlay {
         }
         modeWatch = model.$expanded.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }
         onLock = onLockScreen
+        if onLockScreen, Self.wakeFadeOn, let wake = Self.lastWake, Date().timeIntervalSince(wake) < 20 { fadeIn() }
         // The output list is a popup of its own above the small player; the card keeps its size.
         outputsWatch = model.$outputsOpen.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] open in self?.setOutputsPopup(open) }
         Debug.log("overlay shown on \(windows.count) screen(s), lock=\(onLockScreen)")
@@ -495,6 +510,12 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             AudioSpectrum.shared.holdUntil = Date().addingTimeInterval(16)
             AudioSpectrum.shared.start()
             DispatchQueue.main.asyncAfter(deadline: .now() + 16) { AudioSpectrum.shared.stop() }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                Overlay.lastWake = Date()
+                if let self, self.overlay.isShowing, self.locked { self.overlay.fadeIn() }  // already up while the display slept
+            }
         }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
