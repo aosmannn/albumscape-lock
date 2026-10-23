@@ -106,7 +106,7 @@ final class AudioSpectrum: ObservableObject {
     }
 
     /// On by default; Settings turns it off.
-    static var enabled: Bool { UserDefaults.standard.object(forKey: "audioVisualizer") as? Bool != false }
+    static var enabled: Bool { UserDefaults.standard.object(forKey: "audioVisualizer") as? Bool != false && !Power.saving }
 
     private let processor = SpectrumProcessor()
     private var tapID = AudioObjectID(kAudioObjectUnknown)

@@ -52,7 +52,7 @@ struct SettingsView: View {
     var scrolls = true  // a picture of the page (for checking its layout) can't show a scrolling area
 
     enum Page: String, CaseIterable, Identifiable {
-        case general = "General", lockScreen = "Lock screen", videos = "Music videos", desktop = "Desktop", spotify = "Spotify", pc = "Windows PC", about = "About"
+        case general = "General", lockScreen = "Lock screen", videos = "Music videos", desktop = "Desktop", spotify = "Spotify", lastfm = "Other players", pc = "Windows PC", about = "About"
         var id: String { rawValue }
         var symbol: String {
             switch self {
@@ -61,6 +61,7 @@ struct SettingsView: View {
             case .videos: return "play.rectangle.fill"
             case .desktop: return "macwindow"
             case .spotify: return "heart.fill"
+            case .lastfm: return "music.note.list"
             case .pc: return "desktopcomputer"
             case .about: return "info.circle.fill"
             }
@@ -72,6 +73,7 @@ struct SettingsView: View {
             case .videos: return Color(red: 0.90, green: 0.25, blue: 0.18)
             case .desktop: return Color(red: 0.22, green: 0.62, blue: 0.85)
             case .spotify: return Color(red: 0.12, green: 0.73, blue: 0.33)
+            case .lastfm: return Color(red: 0.85, green: 0.10, blue: 0.20)
             case .pc: return Color(red: 0.25, green: 0.52, blue: 0.96)
             case .about: return Settings.rose
             }
@@ -84,6 +86,7 @@ struct SettingsView: View {
             case .videos: return "music videos youtube clip animation"
             case .desktop: return "wallpaper animated cover desktop icons"
             case .spotify: return "spotify heart liked songs client id connect"
+            case .lastfm: return "last.fm lastfm scrobble other players tidal youtube music browser phone iphone"
             case .pc: return "windows pc link visualizer bridge network"
             case .about: return "version github credits license"
             }
@@ -94,6 +97,10 @@ struct SettingsView: View {
     @State private var search = ""
 
     @AppStorage("showOnLock") private var showOnLock = true
+    @AppStorage("displays") private var displays = "all"
+    @AppStorage("lastfmOn") private var lastfmOn = false
+    @AppStorage("lastfmUser") private var lastfmUser = ""
+    @AppStorage("lastfmKey") private var lastfmKey = ""
     @AppStorage("idleShuffle") private var idleShuffle = true
     @AppStorage("videoMode") private var videoMode = PlayerModel.videoMode
     @AppStorage("animatedWallpaper") private var animatedWallpaper = true
@@ -102,6 +109,7 @@ struct SettingsView: View {
     @AppStorage("linkPC") private var linkPC = false
     @AppStorage("pcAddress") private var pcAddress = ""
     @AppStorage("audioVisualizer") private var audioVisualizer = true
+    @AppStorage("batterySaver") private var batterySaver = 20
     @AppStorage("spotifyClientID") private var clientID = ""
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -179,6 +187,11 @@ struct SettingsView: View {
             case .general:
                 group {
                     row("Show on the lock screen", "Your music fills the lock screen while a song plays") { toggle($showOnLock) }
+                    if NSScreen.screens.count > 1 {
+                        row("Displays", "With more than one screen, where the music shows", below: true) {
+                            segments(["All displays", "Main display only"], selected: displays == "main" ? 1 : 0) { displays = $0 == 1 ? "main" : "all" }
+                        }
+                    }
                     row("Open at login", "Starts quietly in the menu bar when you log in") {
                         toggle(Binding(get: { openAtLogin }, set: { on in
                             do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
@@ -211,6 +224,15 @@ struct SettingsView: View {
                         }
                     }
                 }
+                if Power.onBattery != nil {
+                    group {
+                        row("Save battery", "Stops music videos, the visualizer and the animated desktop; the cover stays", below: true, last: true) {
+                            segments(["Never", "Below 20%", "Below 40%", "On battery"], selected: [0, 20, 40, 100].firstIndex(of: batterySaver) ?? 1) {
+                                batterySaver = [0, 20, 40, 100][$0]; model.videoSettingChanged()
+                            }
+                        }
+                    }
+                }
                 hint("If no animation: the album's animated cover plays, and a video only for albums without one. Off: animated covers only.")
             case .desktop:
                 group {
@@ -229,6 +251,21 @@ struct SettingsView: View {
                             .padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Settings.ink))
                     }
                 }
+            case .lastfm:
+                group {
+                    row("Show music from other players", "Tidal, YouTube Music in a browser, Spotify on your phone: anything that scrobbles to Last.fm") { toggle($lastfmOn) }
+                    row("Last.fm username", "Your Last.fm account name", below: true) {
+                        TextField("username", text: $lastfmUser)
+                            .textFieldStyle(.plain).font(.system(size: 13, design: .monospaced))
+                            .padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Settings.ink))
+                    }
+                    row("API key", "Free, from last.fm/api/account/create (any name). It only lets this app read your own listening", below: true, last: true) {
+                        TextField("Paste your Last.fm API key", text: $lastfmKey)
+                            .textFieldStyle(.plain).font(.system(size: 13, design: .monospaced))
+                            .padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Settings.ink))
+                    }
+                }
+                hint("Spotify and Music on this Mac always come first. Songs from here can't be paused or skipped from the lock screen, and the lyrics follow a clock that starts when the song is first seen, so they can be a few seconds off.")
             case .pc:
                 group {
                     row("Link with my Windows PC", "The PC's sound moves this Mac's visualizer, and the Mac's moves the PC's. Only 48 small numbers travel, over your own network") {

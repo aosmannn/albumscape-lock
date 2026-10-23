@@ -15,7 +15,7 @@ final class AnimatedWallpaper {
 
     static var enabled: Bool {
         let suite = UserDefaults(suiteName: "com.adam.albumscape-lock")?.object(forKey: "animatedWallpaper") as? Bool
-        return (suite ?? UserDefaults.standard.object(forKey: "animatedWallpaper") as? Bool) != false
+        return (suite ?? UserDefaults.standard.object(forKey: "animatedWallpaper") as? Bool) != false && !Power.saving
     }
 
     private var windows: [NSWindow] = []

@@ -82,8 +82,9 @@ final class Overlay {
         guard windows.isEmpty else { return }
         model.expanded = true
         model.start()
-        screens = NSScreen.screens
-        for screen in NSScreen.screens {
+        // Settings > Displays: every screen, or just the main one (the others keep the normal lock screen).
+        screens = UserDefaults.standard.string(forKey: "displays") == "main" ? Array(NSScreen.screens.prefix(1)) : NSScreen.screens
+        for screen in screens {
             let window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.isOpaque = true
@@ -471,6 +472,14 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             AudioSpectrum.shared.start()
             DispatchQueue.main.asyncAfter(deadline: .now() + 16) { AudioSpectrum.shared.stop() }
         }
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.locked, self.overlay.isShowing else { return }
+                Debug.log("displays changed: rebuilding the lock screen")
+                self.overlay.hide(keepPolling: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.follow() }
+            }
+        }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.didLock() }
@@ -527,7 +536,15 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var wallpaperShown = ""  // "own", or the address of the cover on the wallpaper; empty until first set
 
+    private var wasSaving = false
     private func desktopTick() async {
+        let saving = Power.saving
+        if saving != wasSaving {  // plugged in or unplugged, or the charge crossed the limit
+            wasSaving = saving
+            Debug.log("battery saver \(saving ? "on" : "off")")
+            model.videoSettingChanged()
+            if saving { AnimatedWallpaper.shared.hide() }
+        }
         let animated = model.art?.motionURL
         if AnimatedWallpaper.enabled {
             let wall = AnimatedWallpaper.shared

@@ -57,12 +57,13 @@ final class NowPlayingReader {
             if track.isPlaying { return track }
             paused = paused ?? track
         }
+        if paused == nil { return await LastFM.shared.nowPlaying() }  // nothing local: whatever Last.fm says is playing
         return paused
     }
 
     /// "playpause", "next track" or "previous track" to the player the song is coming from.
     func command(_ verb: String, source: String) {
-        guard !source.isEmpty else { return }
+        guard !source.isEmpty, source != LastFM.bundle else { return }
         queue.async { _ = NSAppleScript(source: "tell application id \"\(source)\" to \(verb)")?.executeAndReturnError(nil) }
     }
 

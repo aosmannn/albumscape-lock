@@ -123,7 +123,7 @@ final class PlayerModel: ObservableObject {
         if let mode = UserDefaults.standard.string(forKey: "videoMode") { return mode }
         return UserDefaults.standard.object(forKey: "musicVideos") as? Bool == false ? "off" : "always"
     }
-    static var videosAllowed: Bool { videoMode != "off" }
+    static var videosAllowed: Bool { videoMode != "off" && !Power.saving }
     private var poll: Task<Void, Never>?
     private var connectedWatch: AnyCancellable?
 
