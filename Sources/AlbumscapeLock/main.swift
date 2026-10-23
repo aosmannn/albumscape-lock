@@ -497,9 +497,6 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
             }
         }
-        // The small now-playing card on the desktop: while a song is loaded and the Mac is awake and unlocked.
-        if DesktopWidget.enabled, !locked, model.track != nil, model.idleArt == nil, CGDisplayIsAsleep(CGMainDisplayID()) == 0 { DesktopWidget.shared.show(model: model) }
-        else { DesktopWidget.shared.hide() }
         // The visualizer listens only while the player is on screen.
         let spectrum = AudioSpectrum.shared
         if AudioSpectrum.enabled, overlay.isShowing, model.idleArt == nil { spectrum.start() }  // listening while the player is up, paused or not, so it starts moving at once
