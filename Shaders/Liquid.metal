@@ -43,3 +43,51 @@ static float2 edgeGradient(float2 p, SwiftUI::Layer layer) {
     float shade = edge * away * 0.35 + 0.04;
     return half4(0, 0, 0, half(shade)) * half(a);
 }
+
+// MARK: - The player card's Liquid Glass (our own)
+// Following Apple's description of the material: it blurs what is behind it (done in SwiftUI before this runs), bends
+// that picture like the thick rim of a glass slab, picks up the light around it, and answers the pointer: the light
+// sits where the mouse is, so the highlight and the bright edge move as you move over the card.
+
+// Distance from a point to the edge of a rounded box centred at the origin: negative inside.
+static float roundedBox(float2 p, float2 halfSize, float r) {
+    float2 q = abs(p) - halfSize + r;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+[[ stitchable ]] half4 glassLens(float2 position, SwiftUI::Layer layer, float2 size, float radius, float2 light, float t) {
+    float2 half_ = size * 0.5;
+    float2 p = position - half_;
+    float d = roundedBox(p, half_, radius);
+    if (d > 0.75) return half4(0);
+    float inside = -d;
+
+    // which way the edge faces (outward), from the distance field
+    float e = 1.0;
+    float2 n = float2(roundedBox(p + float2(e, 0), half_, radius) - roundedBox(p - float2(e, 0), half_, radius),
+                      roundedBox(p + float2(0, e), half_, radius) - roundedBox(p - float2(0, e), half_, radius));
+    n = n / max(length(n), 1e-4);
+
+    // the rim: the picture is drawn in from further inside, more strongly toward the edge, so it magnifies and bends
+    float band = 34.0;
+    float k = clamp(1.0 - inside / band, 0.0, 1.0);
+    float bend = k * k * k * 34.0;
+    float2 source = position - n * bend;
+    float split = k * k * 1.8;  // colours part slightly where it bends most
+    half3 col = half3(layer.sample(source - n * split).r, layer.sample(source).g, layer.sample(source + n * split).b);
+    col *= 0.80;  // a little darker than what's behind, so white text reads
+
+    // light from the pointer (or the upper left until the pointer comes by)
+    float2 lightAt = light * size;
+    float2 toLight = lightAt - position;
+    float near = exp(-dot(toLight, toLight) / (size.x * size.x * 0.10));
+    float facing = dot(n, normalize(toLight + 1e-4));  // edges turned toward the light catch it
+    float rim = smoothstep(2.4, 0.0, inside) * (0.30 + 0.70 * max(facing, 0.0));
+    float glow = smoothstep(12.0, 0.0, inside) * 0.07;
+    // a faint sheen that drifts across now and then, as light moves over real glass
+    float sweep = pow(max(0.0, 1.0 - abs(fract((p.x + p.y * 0.5) / size.x * 0.7 - t * 0.04) * 2.0 - 1.0) * 6.0), 2.0) * 0.05;
+    col += half3(rim * 0.85 + glow + near * 0.12 + sweep);
+
+    float alpha = smoothstep(0.75, -0.75, d);
+    return half4(col * alpha, alpha);
+}

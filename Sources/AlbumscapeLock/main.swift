@@ -211,10 +211,7 @@ final class Overlay {
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)
             let origin = CGPoint(x: card.minX - screen.frame.minX, y: screen.frame.maxY - card.maxY)
-            let started = Date()
-            let glass = GlassShader.render(wallpaper: image, screenSize: screen.frame.size, origin: origin, size: MiniPlayer.size, scale: screen.backingScaleFactor)
-            Debug.log("glass shader: \(glass == nil ? "failed" : "drawn") in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
-            let backdrop = GlassBackdrop(image: image, screenSize: screen.frame.size, origin: origin, glass: glass)
+            let backdrop = GlassBackdrop(image: image, screenSize: screen.frame.size, origin: origin)
             return TapHostingView(rootView: MiniPlayer(model: model, nativeGlass: true, backdrop: backdrop))
         }
         if mode != "appkit", UserDefaults.standard.object(forKey: "nativeGlass") as? Bool != false, #available(macOS 26.0, *) {
@@ -351,6 +348,25 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var locked = false
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        if let i = CommandLine.arguments.firstIndex(of: "--card-test"), i + 2 < CommandLine.arguments.count, let picture = NSImage(contentsOfFile: CommandLine.arguments[i + 2]) {
+            // The player card's glass over a picture: `AlbumscapeLock --card-test out.png picture.jpg`
+            let screen = CGSize(width: 1470, height: 956)
+            let origin = CGPoint(x: (screen.width - MiniPlayer.size.width) / 2, y: 520)
+            let m: CGFloat = 40, card = MiniPlayer.size
+            let view = ZStack {
+                Image(nsImage: picture).resizable().scaledToFill().frame(width: screen.width, height: screen.height).clipped()
+                    .offset(x: -origin.x + m, y: -origin.y + m)
+                    .frame(width: card.width + m * 2, height: card.height + m * 2, alignment: .topLeading).clipped()
+                LiquidGlassCard(backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: origin), size: card)
+            }
+            .frame(width: card.width + m * 2, height: card.height + m * 2)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 2
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+            }
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--settings-test"), i + 1 < CommandLine.arguments.count {
             let renderer = ImageRenderer(content: SettingsView(model: model, preview: {}, scrolls: false).environment(\.colorScheme, .dark))
             renderer.scale = 2
@@ -369,18 +385,6 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let renderer = ImageRenderer(content: view)
             renderer.scale = 2
             if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
-                try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
-            }
-            exit(0)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--glass-test"), i + 1 < CommandLine.arguments.count {
-            // Draws the card's glass over the current wallpaper into a PNG and quits: `AlbumscapeLock --glass-test out.png`
-            let screen = NSScreen.screens[0]
-            let card = NSRect(x: screen.frame.midX - MiniPlayer.size.width / 2, y: screen.frame.minY + screen.frame.height * 0.235, width: MiniPlayer.size.width, height: MiniPlayer.size.height)
-            let origin = CGPoint(x: card.minX - screen.frame.minX, y: screen.frame.maxY - card.maxY)
-            if let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url),
-               let glass = GlassShader.render(wallpaper: image, screenSize: screen.frame.size, origin: origin, size: MiniPlayer.size, scale: screen.backingScaleFactor),
-               let tiff = glass.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
                 try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
             }
             exit(0)

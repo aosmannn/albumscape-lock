@@ -495,46 +495,37 @@ struct GlassBackdrop {
     let image: NSImage
     let screenSize: CGSize
     let origin: CGPoint  // the card's top-left corner on the screen
-    /// The card as the ported shader draws it; the SwiftUI approximation below is the fallback.
-    var glass: NSImage?
 }
 
-/// macOS's own glass samples whatever is behind its window, and behind this window (on the lock screen) there is nothing
-/// it can see, so it comes out as plain see-through. This draws what glass does with the wallpaper instead: the picture
-/// behind the card, magnified a little like a lens, softened and brightened in colour, with a light rim that is
-/// brightest at the corners facing the light, a soft sheen across the top and a glow just inside the edge.
+/// Our Liquid Glass (Shaders/Liquid.metal, glassLens): the wallpaper behind the card, softly blurred, bent at the rim
+/// like thick glass, and lit from wherever the pointer is.
 struct LiquidGlassCard: View {
     let backdrop: GlassBackdrop
     let size: CGSize
     private let radius: CGFloat = 40
+    @State private var light = CGPoint(x: 0.2, y: -0.1)  // upper left until the pointer comes over the card
 
     var body: some View {
-        if let glass = backdrop.glass {
-            Image(nsImage: glass).resizable().frame(width: size.width, height: size.height)
-        } else {
-            approximation
-        }
-    }
-
-    @ViewBuilder private var approximation: some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let centre = UnitPoint(x: (backdrop.origin.x + size.width / 2) / backdrop.screenSize.width,
-                               y: (backdrop.origin.y + size.height / 2) / backdrop.screenSize.height)
-        ZStack {
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+            let t = Float(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600))
             Image(nsImage: backdrop.image).resizable().scaledToFill()
                 .frame(width: backdrop.screenSize.width, height: backdrop.screenSize.height).clipped()
-                .blur(radius: 9)
-                .scaleEffect(1.07, anchor: centre)
-                .saturation(1.45).brightness(0.05)
+                .blur(radius: 3.5)
+                .saturation(1.25)
                 .offset(x: -backdrop.origin.x, y: -backdrop.origin.y)
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
-            shape.fill(Color.black.opacity(0.2))
-            shape.fill(LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.04), .clear], startPoint: .top, endPoint: .center))
-            shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 7).blur(radius: 6).clipShape(shape)
-            shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.85), .white.opacity(0.1), .white.opacity(0.35)],
-                                              startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.4)
+                .clipped()
+                .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(light), .float(t)),
+                             maxSampleOffset: CGSize(width: 30, height: 30))
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(shape)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let point):
+                withAnimation(.easeOut(duration: 0.25)) { light = CGPoint(x: point.x / size.width, y: point.y / size.height) }
+            case .ended:
+                withAnimation(.easeOut(duration: 0.6)) { light = CGPoint(x: 0.2, y: -0.1) }
+            }
+        }
     }
 }

@@ -49,4 +49,4 @@ That's it. **Play a song** and lock your Mac.
 
 ## Credits
 
-Made by [@aosmannn](https://github.com/aosmannn). Lyrics from [LRCLIB](https://lrclib.net). The Liquid Glass drawing is a Swift port of [ybouane/liquidglass](https://github.com/ybouane/liquidglass). Covers and animations come from Apple Music's public pages. MIT license.
+Made by [@aosmannn](https://github.com/aosmannn). Lyrics from [LRCLIB](https://lrclib.net). Covers and animations come from Apple Music's public pages. MIT license.

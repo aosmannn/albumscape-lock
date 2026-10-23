@@ -68,7 +68,7 @@ defaults write com.adam.albumscape-lock glassMode -string swiftui       # liquid
 
 ## Credits
 
-Liquid Glass drawing is a Swift port of the shader in [ybouane/liquidglass](https://github.com/ybouane/liquidglass). Lyrics from [LRCLIB](https://lrclib.net). Animated covers and covers come from Apple Music's public pages.
+Lyrics from [LRCLIB](https://lrclib.net). Animated covers and covers come from Apple Music's public pages.
 
 ## License
 

@@ -231,7 +231,7 @@ struct SettingsView: View {
                         Button("OPEN") { NSWorkspace.shared.open(URL(string: "https://github.com/aosmannn/albumscape-lock")!) }.buttonStyle(OutlineButton()).pointer()
                     }
                 }
-                hint("Lyrics from LRCLIB · Liquid Glass after ybouane/liquidglass · covers and animations from Apple Music")
+                hint("Lyrics from LRCLIB · covers and animations from Apple Music")
             }
         }
     }
