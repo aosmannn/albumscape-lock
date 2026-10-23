@@ -96,6 +96,14 @@ final class AudioSpectrum: ObservableObject {
     static let shared = AudioSpectrum()
     @Published private(set) var bands = [Float](repeating: 0, count: SpectrumProcessor.bandCount)
     @Published private(set) var running = false
+    /// Bars sent by the PC (PeerLink); used instead of ours while they keep arriving.
+    @Published private(set) var remote = [Float](repeating: 0, count: SpectrumProcessor.bandCount)
+    private var remoteAt = Date.distantPast
+    var remoteFresh: Bool { Date().timeIntervalSince(remoteAt) < 0.6 }
+    func setRemote(_ levels: [Float]) {
+        guard levels.count == SpectrumProcessor.bandCount else { return }
+        remote = levels; remoteAt = Date()
+    }
 
     /// On by default; Settings turns it off.
     static var enabled: Bool { UserDefaults.standard.object(forKey: "audioVisualizer") as? Bool != false }
@@ -125,6 +133,7 @@ final class AudioSpectrum: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.bands = self.processor.snapshot()
+                PeerLink.shared.send(self.bands)
                 ticks += 1
                 if ticks % 90 == 0 { let r = self.processor.takeReport(); let b = self.bands, g = b.count / 6
                     let groups = (0..<6).map { String(format: "%.2f", b[($0 * g)..<(($0 + 1) * g)].max() ?? 0) }.joined(separator: " ")
@@ -224,7 +233,7 @@ struct SpectrumBars: View {
 
     var body: some View {
         Canvas { context, size in
-            let bands = levels ?? spectrum.bands
+            let bands = levels ?? (spectrum.remoteFresh ? spectrum.remote : spectrum.bands)
             let n = max(count, 1)
             let total = CGFloat(n) * barWidth + CGFloat(n - 1) * spacing
             let startX = (size.width - total) / 2

@@ -27,6 +27,9 @@ final class AnimatedWallpaper {
     private var observing = false
 
     private var generation = 0
+    private var startObserver: NSKeyValueObservation?
+    private var clockTick: Any?
+    private weak var clockPlayer: AVQueuePlayer?
 
     /// Starts `link` on the desktop. The picture already showing stays until the new one has its first frame, then they
     /// cross-fade, so a song change never flashes black.
@@ -70,6 +73,20 @@ final class AnimatedWallpaper {
             fresh.append(window)
         }
         queue.defaultRate = AlbumDB.Daypart.now == .night ? 0.7 : 1  // a calmer pace at night
+        // start where the lock screen's player has this video, so unlocking carries on from the same frame
+        if let start = PlaybackClock.shared.position(of: url) {
+            var started = false
+            startObserver = item.observe(\.status, options: [.new]) { item, _ in
+                guard item.status == .readyToPlay, !started else { return }
+                started = true
+                DispatchQueue.main.async { queue.seek(to: start, toleranceBefore: .zero, toleranceAfter: .zero) }
+            }
+        }
+        clockTick = queue.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak queue] time in
+            guard let item = queue?.currentItem, item.duration.isNumeric else { return }
+            MainActor.assumeIsolated { PlaybackClock.shared.note(url, time: time.seconds, duration: item.duration.seconds) }
+        }
+        clockPlayer = queue
         queue.play()
         pendingWindows = fresh
         pendingPlayer = queue

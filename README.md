@@ -47,6 +47,10 @@ That's it. **Play a song** and lock your Mac.
 - The heart needs a free Spotify app of your own. Setup is in [the advanced page](docs/ADVANCED.md).
 - Build it yourself: install Xcode, then `./build-app.sh`.
 
+## Link a Windows PC (optional)
+
+Music on your PC can move the Mac's visualizer, and the Mac's sound can move the PC's. In Settings › Windows PC switch the link on, then run [`windows-bridge/albumscape_bridge.py`](windows-bridge/albumscape_bridge.py) on the PC (see the notes at the top of the file). Only 48 small numbers travel, over your own network. I couldn't test the PC side on Windows myself.
+
 ## Credits
 
 Made by [@aosmannn](https://github.com/aosmannn). Lyrics from [LRCLIB](https://lrclib.net). Covers and animations come from Apple Music's public pages. MIT license.

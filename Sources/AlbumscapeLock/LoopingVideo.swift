@@ -34,6 +34,7 @@ struct LoopingVideo: NSViewRepresentable {
         private var current: URL?
         private var observers: [NSKeyValueObservation] = []
         private var endObserver: NSObjectProtocol?
+        private var tick: Any?
 
         override init(frame: NSRect) {
             playerLayer = AVPlayerLayer(player: player)
@@ -65,7 +66,19 @@ struct LoopingVideo: NSViewRepresentable {
                 if item.status == .failed { DispatchQueue.main.async { self?.onFailure() } }
             })
             player.replaceCurrentItem(with: item)
+            // carry on from where the other player (the desktop's) has this video, if it has
+            if let start = PlaybackClock.shared.position(of: url) {
+                observers.append(item.observe(\.status, options: [.new]) { [weak self] item, _ in
+                    guard item.status == .readyToPlay else { return }
+                    DispatchQueue.main.async { self?.player.seek(to: start, toleranceBefore: .zero, toleranceAfter: .zero) }
+                })
+            }
             player.play()
+            if let tick { player.removeTimeObserver(tick) }
+            tick = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
+                guard let self, let item = self.player.currentItem else { return }
+                MainActor.assumeIsolated { PlaybackClock.shared.note(url, time: time.seconds, duration: item.duration.seconds) }
+            }
         }
 
         func stop() {

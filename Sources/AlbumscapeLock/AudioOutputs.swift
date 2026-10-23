@@ -12,12 +12,44 @@ struct OutputDevice: Identifiable, Equatable {
     let id: AudioDeviceID
     let name: String
     let isCurrent: Bool
+    let symbol: String   // laptop speakers, headphones, a display...
+    var volume: Float?   // 0...1, when the device has one
 }
 
 enum AudioOutputs {
     static func list() -> [OutputDevice] {
         let current = defaultOutput()
-        return allDevices().filter(hasOutput).map { OutputDevice(id: $0, name: name(of: $0), isCurrent: $0 == current) }
+        return allDevices().filter(hasOutput).map { OutputDevice(id: $0, name: name(of: $0), isCurrent: $0 == current, symbol: symbol(of: $0), volume: volume(of: $0)) }
+    }
+
+    /// The device's main volume, the same control as the sound menu's slider.
+    static func volume(of device: AudioDeviceID) -> Float? {
+        var address = AudioObjectPropertyAddress(mSelector: 0x766D_7663 /* 'vmvc' */, mScope: kAudioObjectPropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectHasProperty(device, &address) else { return nil }
+        var value: Float32 = 0
+        var size = UInt32(MemoryLayout<Float32>.size)
+        return AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr ? value : nil
+    }
+
+    static func setVolume(_ value: Float, of device: AudioDeviceID) {
+        var address = AudioObjectPropertyAddress(mSelector: 0x766D_7663, mScope: kAudioObjectPropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
+        var v = Float32(min(1, max(0, value)))
+        AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &v)
+    }
+
+    private static func symbol(of device: AudioDeviceID) -> String {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var type: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        AudioObjectGetPropertyData(device, &address, 0, nil, &size, &type)
+        switch type {
+        case kAudioDeviceTransportTypeBuiltIn: return "laptopcomputer"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "headphones"
+        case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort: return "display"
+        case kAudioDeviceTransportTypeAirPlay: return "airplayaudio"
+        case kAudioDeviceTransportTypeUSB: return "hifispeaker"
+        default: return "speaker.wave.2"
+        }
     }
 
     @discardableResult

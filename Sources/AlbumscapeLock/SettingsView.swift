@@ -46,11 +46,12 @@ final class SettingsWindow {
 struct SettingsView: View {
     @ObservedObject var model: PlayerModel
     @ObservedObject private var spotify = SpotifyAccount.shared
+    @ObservedObject private var link = PeerLink.shared
     let preview: () -> Void
     var scrolls = true  // a picture of the page (for checking its layout) can't show a scrolling area
 
     enum Page: String, CaseIterable, Identifiable {
-        case general = "General", lockScreen = "Lock screen", videos = "Music videos", desktop = "Desktop", spotify = "Spotify", about = "About"
+        case general = "General", lockScreen = "Lock screen", videos = "Music videos", desktop = "Desktop", spotify = "Spotify", pc = "Windows PC", about = "About"
         var id: String { rawValue }
         var symbol: String {
             switch self {
@@ -59,6 +60,7 @@ struct SettingsView: View {
             case .videos: return "play.rectangle.fill"
             case .desktop: return "macwindow"
             case .spotify: return "heart.fill"
+            case .pc: return "desktopcomputer"
             case .about: return "info.circle.fill"
             }
         }
@@ -69,6 +71,7 @@ struct SettingsView: View {
             case .videos: return Color(red: 0.90, green: 0.25, blue: 0.18)
             case .desktop: return Color(red: 0.22, green: 0.62, blue: 0.85)
             case .spotify: return Color(red: 0.12, green: 0.73, blue: 0.33)
+            case .pc: return Color(red: 0.25, green: 0.52, blue: 0.96)
             case .about: return Settings.rose
             }
         }
@@ -80,6 +83,7 @@ struct SettingsView: View {
             case .videos: return "music videos youtube clip animation"
             case .desktop: return "wallpaper animated cover desktop icons"
             case .spotify: return "spotify heart liked songs client id connect"
+            case .pc: return "windows pc link visualizer bridge network"
             case .about: return "version github credits license"
             }
         }
@@ -94,6 +98,8 @@ struct SettingsView: View {
     @AppStorage("animatedWallpaper") private var animatedWallpaper = true
     @AppStorage("coverWallpaper") private var coverWallpaper = false
     @AppStorage("clock24h") private var clock24h = false
+    @AppStorage("linkPC") private var linkPC = false
+    @AppStorage("pcAddress") private var pcAddress = ""
     @AppStorage("audioVisualizer") private var audioVisualizer = true
     @AppStorage("spotifyClientID") private var clientID = ""
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
@@ -222,6 +228,19 @@ struct SettingsView: View {
                             .padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Settings.ink))
                     }
                 }
+            case .pc:
+                group {
+                    row("Link with my Windows PC", "The PC's sound moves this Mac's visualizer, and the Mac's moves the PC's. Only 48 small numbers travel, over your own network") {
+                        toggle(Binding(get: { linkPC }, set: { linkPC = $0; PeerLink.shared.apply() }))
+                    }
+                    row("PC address", "Optional: the PC's address (like 192.168.1.20). Leave empty and the Mac answers whichever PC sends to it", below: true) {
+                        TextField("Leave empty to find it automatically", text: $pcAddress)
+                            .textFieldStyle(.plain).font(.system(size: 13, design: .monospaced))
+                            .padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Settings.ink))
+                    }
+                    row("Status", link.status, last: true) { EmptyView() }
+                }
+                hint("On the PC, run windows-bridge/albumscape_bridge.py from the GitHub page. It needs Python and two small add-ons.")
             case .about:
                 group {
                     HStack(spacing: 16) {

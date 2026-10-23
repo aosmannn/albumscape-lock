@@ -321,7 +321,7 @@ private struct SongInfo: View {
                     Text(track.title).font(.system(size: 36, weight: .bold)).lineLimit(1)
                     // small and level with the title's middle, like the one in Droppy's widget
                     if AudioSpectrum.enabled {  // paused it stays, as still dots, and starts moving the moment sound does
-                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3).frame(width: 30, height: 18)
+                        SpectrumBars(accent: accent, count: 7, barWidth: 3.5, spacing: 3).frame(width: 43, height: 20)
                     }
                 }
                 Text([track.artist, album ?? track.album].filter { !$0.isEmpty }.joined(separator: "  ·  "))
@@ -362,6 +362,8 @@ struct MiniPlayer: View {
     @State private var outputs: [OutputDevice] = []
 
     static let size = CGSize(width: 410, height: 160)
+    /// How much taller the card gets for its output list: a heading and a row per device (at most four).
+    static func outputsExtra(_ devices: Int) -> CGFloat { 52 + CGFloat(min(max(devices, 1), 4)) * 54 }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -377,18 +379,18 @@ struct MiniPlayer: View {
                     HStack(spacing: 6) {
                         Text(model.track?.title ?? "Nothing playing").font(.system(size: 14, weight: .semibold)).lineLimit(1)
                         Button { model.toggleLyrics() } label: {
-                            Text("L").font(.system(size: 9, weight: .heavy, design: .rounded))
-                                .foregroundStyle(model.lyricsOn ? Color.black.opacity(0.85) : Color.white.opacity(0.9))
-                                .frame(width: 15, height: 15)
-                                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(model.lyricsOn ? accent : Color.white.opacity(0.22)))
-                        }.buttonStyle(.plain).opacity(model.lyrics.isEmpty ? 0.5 : 1)
+                            Text("L").font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.black.opacity(0.88))
+                                .frame(width: 18, height: 18)
+                                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.white.opacity(model.lyricsOn ? 0.95 : 0.55)))
+                        }.buttonStyle(.plain).opacity(model.lyrics.isEmpty ? 0.6 : 1)
                     }
                     Text(model.track?.artist ?? "").font(.system(size: 12.5)).opacity(0.8).lineLimit(1)
                 }
                 .id(model.track?.key ?? "none").transition(.opacity)  // the title and artist fade into the next song's
                 .animation(.easeInOut(duration: 0.4), value: model.track?.key)
                 Spacer(minLength: 0)
-                if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 6, barWidth: 3, spacing: 2.5).frame(width: 32, height: 13) }
+                if AudioSpectrum.enabled { SpectrumBars(accent: accent, count: 7, barWidth: 3, spacing: 2.5).frame(width: 36, height: 14) }
             }
 
             TimelineView(.periodic(from: .now, by: 0.2)) { context in
@@ -423,10 +425,15 @@ struct MiniPlayer: View {
                     Spacer()
                     Button {
                         outputs = AudioOutputs.list()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) { showOutputs.toggle() }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showOutputs.toggle()
+                            model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0
+                        }
                     } label: {
                         Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
-                            .frame(width: 32, height: 30).contentShape(Rectangle())
+                            .frame(width: 46, height: 46)
+                            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(showOutputs ? 0.16 : 0)))
+                            .contentShape(Rectangle())
                     }.buttonStyle(PressStyle())
                 }
             }
@@ -435,37 +442,10 @@ struct MiniPlayer: View {
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
         .padding(.horizontal, 14).padding(.vertical, 13)
-        .frame(width: Self.size.width, height: Self.size.height)
+        .overlay(alignment: .bottom) { if showOutputs { outputsList.transition(.opacity) } }
+        .frame(width: Self.size.width, height: Self.size.height + model.outputsHeight, alignment: .top)
         .modifier(GlassBackground(enabled: nativeGlass == false))
-        .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: Self.size) } }
-        .overlay(alignment: .bottom) {
-            if showOutputs {
-                VStack(spacing: 2) {
-                    Text("Play on").font(.system(size: 11, weight: .semibold)).opacity(0.7).frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 2)
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 2) {
-                            ForEach(outputs) { device in
-                                Button {
-                                    if AudioOutputs.select(device.id) { outputs = AudioOutputs.list() }
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) { showOutputs = false }
-                                } label: {
-                                    HStack {
-                                        Text(device.name).font(.system(size: 13, weight: device.isCurrent ? .semibold : .regular)).lineLimit(1)
-                                        Spacer()
-                                        if device.isCurrent { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(accent) }
-                                    }
-                                    .padding(.horizontal, 10).padding(.vertical, 5).contentShape(Rectangle())
-                                }.buttonStyle(PressStyle())
-                            }
-                        }
-                    }
-                }
-                .padding(10).frame(width: Self.size.width - 28, height: 104)
-                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.black.opacity(0.62)))
-                .padding(.bottom, 8)
-                .transition(.scale(scale: 0.92, anchor: .bottom).combined(with: .opacity))
-            }
-        }
+        .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: CGSize(width: Self.size.width, height: Self.size.height + model.outputsHeight)) } }
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 Text(toast).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
@@ -476,6 +456,25 @@ struct MiniPlayer: View {
     }
 
     private var accent: Color { model.art?.accent ?? .white }
+
+    /// The area that opens under the controls, like Droppy's: a heading, then each speaker or headphone with a check on
+    /// the one in use; on that row the lighter fill is the volume, and dragging along it changes it.
+    private var outputsList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 20)
+            Text("Outputs").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.6)).padding(.horizontal, 28).padding(.top, 4)
+            ForEach(outputs.prefix(4)) { device in
+                OutputRow(device: device, accent: accent) { chosen in
+                    if AudioOutputs.select(chosen.id) { outputs = AudioOutputs.list() }
+                } setVolume: { v in
+                    AudioOutputs.setVolume(v, of: device.id)
+                    if let i = outputs.firstIndex(where: { $0.id == device.id }) { outputs[i].volume = v }
+                }
+            }
+        }
+        .padding(.bottom, 14)
+        .frame(width: Self.size.width, alignment: .top)
+    }
 
     private var progress: Double {
         guard let t = model.track, t.duration > 0 else { return 0 }
@@ -543,5 +542,41 @@ struct LiquidGlassCard: View {
             .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(0.2, -0.1), .float(0)),
                          maxSampleOffset: CGSize(width: 60, height: 60))
             .frame(width: size.width, height: size.height)
+    }
+}
+
+/// One output in the list: the device's icon and name, a check (or an empty dot) on the right, and, on the one in use, a
+/// lighter fill that is its volume.
+private struct OutputRow: View {
+    let device: OutputDevice
+    let accent: Color
+    let choose: (OutputDevice) -> Void
+    let setVolume: (Float) -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.10))
+                if device.isCurrent, let volume = device.volume {
+                    Capsule().fill(.white.opacity(0.22)).frame(width: max(44, geo.size.width * CGFloat(volume)))
+                }
+                HStack(spacing: 12) {
+                    Image(systemName: device.symbol).font(.system(size: 15)).frame(width: 24)
+                    Text(device.name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 6)
+                    Image(systemName: device.isCurrent ? "checkmark.circle.fill" : "circle.fill")
+                        .font(.system(size: 22)).foregroundStyle(device.isCurrent ? .white : .white.opacity(0.35))
+                }
+                .padding(.horizontal, 18)
+            }
+            .contentShape(Capsule())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                if device.isCurrent, device.volume != nil { setVolume(Float(drag.location.x / geo.size.width)) }
+            }.onEnded { drag in
+                if !device.isCurrent { choose(device) }
+            })
+        }
+        .frame(height: 48).padding(.horizontal, 20)
+        .foregroundStyle(.white)
     }
 }

@@ -76,6 +76,7 @@ final class Overlay {
     private var screens: [NSScreen] = []
     private var infoWindows: [NSWindow] = []
     private var modeWatch: AnyCancellable?
+    private var outputsWatch: AnyCancellable?
 
     func show(onLockScreen: Bool) {
         guard windows.isEmpty else { return }
@@ -142,6 +143,18 @@ final class Overlay {
             }
         }
         modeWatch = model.$expanded.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }
+        // The small player's output list makes the card taller; the window grows downward to match.
+        outputsWatch = model.$outputsHeight.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] extra in
+            guard let self, !self.model.expanded, let window = self.windows.first, let screen = self.screens.first else { return }
+            var frame = self.cardFrame(on: screen)
+            frame.origin.y -= extra
+            frame.size.height += extra
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.animator().setFrame(frame, display: true)
+            }
+        }
         Debug.log("overlay shown on \(windows.count) screen(s), lock=\(onLockScreen)")
     }
 
@@ -267,6 +280,7 @@ final class Overlay {
             let full = screens[index].frame, card = cardFrame(on: screens[index])
             let info = index < infoWindows.count ? infoWindows[index] : nil
             if model.expanded {
+                model.outputsHeight = 0
                 // card -> full screen: the card fades out, the video fades in at full size, then the song info
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = 0.1
@@ -426,6 +440,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         Debug.log("launched, skylight available: \(LockSpace.isAvailable)")
         YouTubeEmbed.prewarm()
+        PeerLink.shared.apply()
         if UserDefaults.standard.bool(forKey: "spectrumSelfTest") {
             // One-off check that the audio tap hears the Mac's own sound: listens while two soft system sounds play.
             UserDefaults.standard.removeObject(forKey: "spectrumSelfTest")
@@ -456,7 +471,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         buildMenu()
         let atLogin = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: keyAELaunchedAsLogInItem)?.booleanValue == true
-        if !atLogin, !CommandLine.arguments.contains("--preview") { openSettings() }  // opened by hand: show its settings
+        if !atLogin, !CommandLine.arguments.contains("--preview"), !CommandLine.arguments.contains("--quiet") { openSettings() }  // opened by hand: show its settings
         if CommandLine.arguments.contains("--preview") { preview() }
     }
 

@@ -11,5 +11,7 @@
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSAppleEventsUsageDescription</key><string>Albumscape Lock reads what Spotify and Music are playing so it can show the matching video on your lock screen.</string>
 <key>NSAudioCaptureUsageDescription</key><string>Albumscape Lock measures the sound that is playing so the visualizer on your lock screen moves with the real music. The audio is never recorded or stored.</string>
+<key>NSLocalNetworkUsageDescription</key><string>Albumscape Lock talks to your own Windows PC on your network so the music visualizer can follow either computer. Nothing leaves your network.</string>
+<key>NSBonjourServices</key><array><string>_albumscape._udp</string></array>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoadsInWebContent</key><true/></dict>
 </dict></plist>
