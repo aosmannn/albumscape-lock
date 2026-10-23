@@ -15,8 +15,10 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var video: YouTubeVideo?
     /// Full-screen video, or the small player (click the video to shrink it, click the cover to open it again).
     @Published var expanded = true
-    /// The small player's output list is open (the card grows downward to hold it).
-    @Published var outputsHeight: CGFloat = 0
+    /// The output list's popup is open above the small player.
+    @Published var outputsOpen = false
+    @Published var outputs: [OutputDevice] = []
+    func toggleOutputs() { outputs = AudioOutputs.list(); outputsOpen.toggle() }
     /// Synced lyrics for the song, and whether to show them (the L button; remembered).
     @Published private(set) var lyrics: [LyricLine] = []
     @Published var lyricsOn: Bool = UserDefaults.standard.object(forKey: "lyrics") as? Bool ?? true {

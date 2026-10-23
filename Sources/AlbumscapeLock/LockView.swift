@@ -358,12 +358,7 @@ struct MiniPlayer: View {
     var nativeGlass = false
     /// The picture behind the card (the wallpaper), when we draw the glass ourselves.
     var backdrop: GlassBackdrop?
-    @State private var showOutputs = UserDefaults.standard.bool(forKey: "debugOutputsOpen")  // only the layout test sets this
-    @State private var outputs: [OutputDevice] = []
-
     static let size = CGSize(width: 410, height: 160)
-    /// How much taller the card gets for its output list: a divider, a heading and a row per device (at most three).
-    static func outputsExtra(_ devices: Int) -> CGFloat { 38 + CGFloat(min(max(devices, 1), 3)) * 54 }
 
     private var playerContent: some View {
         VStack(spacing: 10) {
@@ -423,14 +418,10 @@ struct MiniPlayer: View {
                             .foregroundStyle(model.liked ? accent : .white).opacity(model.liked ? 1 : 0.85)
                     }.buttonStyle(.plain)
                     Spacer()
-                    Button {
-                        outputs = AudioOutputs.list()
-                        showOutputs.toggle()
-                        model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0
-                    } label: {
-                        Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
+                    Button { model.toggleOutputs() } label: {
+                        Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(model.outputsOpen ? 1 : 0.85)
                             .frame(width: 46, height: 46)
-                            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(showOutputs ? 0.16 : 0)))
+                            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(model.outputsOpen ? 0.16 : 0)))
                             .contentShape(Rectangle())
                     }.buttonStyle(PressStyle())
                 }
@@ -444,19 +435,9 @@ struct MiniPlayer: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            playerContent
-            if showOutputs {
-                outputsList
-                    .frame(width: Self.size.width, height: Self.outputsExtra(outputs.count), alignment: .top)
-                    .clipped()
-                    .transition(.opacity)
-            }
-        }
-        .frame(width: Self.size.width, height: Self.size.height + model.outputsHeight, alignment: .top)
-        .onAppear { if showOutputs && outputs.isEmpty { outputs = AudioOutputs.list() } }
+        playerContent
         .modifier(GlassBackground(enabled: nativeGlass == false))
-        .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: CGSize(width: Self.size.width, height: Self.size.height + model.outputsHeight)) } }
+        .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: Self.size) } }
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 Text(toast).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
@@ -467,24 +448,6 @@ struct MiniPlayer: View {
     }
 
     private var accent: Color { model.art?.accent ?? .white }
-
-    /// The area that opens under the controls, like Droppy's: a heading, then each speaker or headphone with a check on
-    /// the one in use; on that row the lighter fill is the volume, and dragging along it changes it.
-    private var outputsList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 20)
-            Text("Outputs").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.6)).padding(.horizontal, 28).padding(.top, 4)
-            ForEach(outputs.prefix(3)) { device in
-                OutputRow(device: device, accent: accent) { chosen in
-                    if AudioOutputs.select(chosen.id) { outputs = AudioOutputs.list() }
-                } setVolume: { v in
-                    AudioOutputs.setVolume(v, of: device.id)
-                    if let i = outputs.firstIndex(where: { $0.id == device.id }) { outputs[i].volume = v }
-                }
-            }
-        }
-        .padding(.bottom, 12)
-    }
 
     private var progress: Double {
         guard let t = model.track, t.duration > 0 else { return 0 }
@@ -557,7 +520,7 @@ struct LiquidGlassCard: View {
 
 /// One output in the list: the device's icon and name, a check (or an empty dot) on the right, and, on the one in use, a
 /// lighter fill that is its volume.
-private struct OutputRow: View {
+struct OutputRow: View {
     let device: OutputDevice
     let accent: Color
     let choose: (OutputDevice) -> Void
@@ -587,6 +550,38 @@ private struct OutputRow: View {
             })
         }
         .frame(height: 48).padding(.horizontal, 20)
+        .foregroundStyle(.white)
+    }
+}
+
+/// The list of outputs, in a small glass card of its own that pops up over the lock screen above the player: a heading,
+/// then each speaker or headphone with a check on the one in use; on that row the lighter fill is the volume, and
+/// dragging along it changes it.
+struct OutputsPopup: View {
+    @ObservedObject var model: PlayerModel
+    let backdrop: GlassBackdrop?
+    static let width: CGFloat = 330
+    static func height(_ devices: Int) -> CGFloat { 52 + CGFloat(min(max(devices, 1), 4)) * 54 }
+    private var accent: Color { model.art?.accent ?? .white }
+
+    var body: some View {
+        let size = CGSize(width: Self.width, height: Self.height(model.outputs.count))
+        ZStack(alignment: .top) {
+            if let backdrop { LiquidGlassCard(backdrop: backdrop, size: size) }
+            else { RoundedRectangle(cornerRadius: 30, style: .continuous).fill(.black.opacity(0.7)) }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Outputs").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.65)).padding(.horizontal, 30).padding(.top, 16)
+                ForEach(model.outputs.prefix(4)) { device in
+                    OutputRow(device: device, accent: accent) { chosen in
+                        if AudioOutputs.select(chosen.id) { model.outputs = AudioOutputs.list() }
+                    } setVolume: { v in
+                        AudioOutputs.setVolume(v, of: device.id)
+                        if let i = model.outputs.firstIndex(where: { $0.id == device.id }) { model.outputs[i].volume = v }
+                    }
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height)
         .foregroundStyle(.white)
     }
 }

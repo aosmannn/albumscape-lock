@@ -77,6 +77,32 @@ final class Overlay {
     private var infoWindows: [NSWindow] = []
     private var modeWatch: AnyCancellable?
     private var outputsWatch: AnyCancellable?
+    private var popups: [NSWindow] = []
+    private var onLock = false
+
+    private func setOutputsPopup(_ open: Bool) {
+        popups.forEach { $0.orderOut(nil); $0.contentView = nil }
+        popups.removeAll()
+        guard open, !model.expanded, let screen = screens.first, let card = windows.first else { return }
+        let size = CGSize(width: OutputsPopup.width, height: OutputsPopup.height(model.outputs.count))
+        let frame = NSRect(x: card.frame.midX - size.width / 2, y: card.frame.maxY + 10, width: size.width, height: size.height)
+        var backdrop: GlassBackdrop?
+        if let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
+            backdrop = GlassBackdrop(image: image, screenSize: screen.frame.size, origin: CGPoint(x: frame.minX - screen.frame.minX, y: screen.frame.maxY - frame.maxY))
+        }
+        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.level = NSWindow.Level(rawValue: card.level.rawValue + 2)
+        window.collectionBehavior = card.collectionBehavior
+        window.contentView = TapHostingView(rootView: OutputsPopup(model: model, backdrop: backdrop))
+        window.setFrame(frame, display: true)
+        window.orderFrontRegardless()
+        if onLock { LockSpace.attach(window, level: level) }
+        popups.append(window)
+    }
 
     func show(onLockScreen: Bool) {
         guard windows.isEmpty else { return }
@@ -143,14 +169,9 @@ final class Overlay {
             }
         }
         modeWatch = model.$expanded.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }
-        // The small player's output list makes the card taller; the window grows downward to match.
-        outputsWatch = model.$outputsHeight.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] extra in
-            guard let self, !self.model.expanded, let window = self.windows.first, let screen = self.screens.first else { return }
-            var frame = self.cardFrame(on: screen)
-            frame.origin.y -= extra
-            frame.size.height += extra
-            window.setFrame(frame, display: true)  // at once, so the window and the card inside it change size together
-        }
+        onLock = onLockScreen
+        // The output list is a popup of its own above the small player; the card keeps its size.
+        outputsWatch = model.$outputsOpen.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] open in self?.setOutputsPopup(open) }
         Debug.log("overlay shown on \(windows.count) screen(s), lock=\(onLockScreen)")
     }
 
@@ -276,7 +297,7 @@ final class Overlay {
             let full = screens[index].frame, card = cardFrame(on: screens[index])
             let info = index < infoWindows.count ? infoWindows[index] : nil
             if model.expanded {
-                model.outputsHeight = 0
+                model.outputsOpen = false
                 // card -> full screen: the card fades out, the video fades in at full size, then the song info
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = 0.1
@@ -336,6 +357,9 @@ final class Overlay {
 
     func hide(keepPolling: Bool = false) {
         guard !windows.isEmpty else { return }
+        model.outputsOpen = false
+        popups.forEach { $0.orderOut(nil); $0.contentView = nil }
+        popups.removeAll()
         windows.forEach { $0.orderOut(nil); $0.contentView = nil }
         windows.removeAll()
         infoWindows.forEach { $0.orderOut(nil); $0.contentView = nil }
@@ -375,22 +399,23 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if let i = CommandLine.arguments.firstIndex(of: "--outputs-test"), i + 2 < CommandLine.arguments.count, let picture = NSImage(contentsOfFile: CommandLine.arguments[i + 2]) {
             // The small player with its output list open, over a picture: `--outputs-test out.png picture.jpg`
-            UserDefaults.standard.set(true, forKey: "debugOutputsOpen")
             let screen = CGSize(width: 1470, height: 956), card = MiniPlayer.size
-            let extra = MiniPlayer.outputsExtra(AudioOutputs.list().count)
-            model.outputsHeight = extra
+            model.outputs = AudioOutputs.list()
+            let pop = CGSize(width: OutputsPopup.width, height: OutputsPopup.height(model.outputs.count))
             let origin = CGPoint(x: (screen.width - card.width) / 2, y: 500)
-            let m: CGFloat = 30, total = CGSize(width: card.width + m * 2, height: card.height + extra + m * 2)
-            let view = ZStack {
+            let popOrigin = CGPoint(x: (screen.width - pop.width) / 2, y: origin.y - pop.height - 10)
+            let m: CGFloat = 30, total = CGSize(width: card.width + m * 2, height: card.height + pop.height + 10 + m * 2)
+            let view = ZStack(alignment: .topLeading) {
                 Image(nsImage: picture).resizable().scaledToFill().frame(width: screen.width, height: screen.height).clipped()
-                    .offset(x: -origin.x + m, y: -origin.y + m).frame(width: total.width, height: total.height, alignment: .topLeading).clipped()
+                    .offset(x: -popOrigin.x + m, y: -popOrigin.y + m).frame(width: total.width, height: total.height, alignment: .topLeading).clipped()
+                OutputsPopup(model: model, backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: popOrigin))
+                    .offset(x: m + (card.width - pop.width) / 2, y: m)
                 MiniPlayer(model: model, nativeGlass: true, backdrop: GlassBackdrop(image: picture, screenSize: screen, origin: origin))
-                    .frame(width: card.width, height: card.height + extra, alignment: .top).frame(width: total.width, height: total.height)
+                    .frame(width: card.width, height: card.height).offset(x: m, y: m + pop.height + 10)
             }.frame(width: total.width, height: total.height)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 2
             if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1])) }
-            UserDefaults.standard.removeObject(forKey: "debugOutputsOpen")
             exit(0)
         }
         if let i = CommandLine.arguments.firstIndex(of: "--onboarding-test"), i + 1 < CommandLine.arguments.count {
