@@ -93,6 +93,7 @@ struct SettingsView: View {
     @AppStorage("videoMode") private var videoMode = PlayerModel.videoMode
     @AppStorage("animatedWallpaper") private var animatedWallpaper = true
     @AppStorage("coverWallpaper") private var coverWallpaper = false
+    @AppStorage("desktopWidget") private var desktopWidget = true
     @AppStorage("clock24h") private var clock24h = false
     @AppStorage("audioVisualizer") private var audioVisualizer = true
     @AppStorage("spotifyClientID") private var clientID = ""
@@ -208,6 +209,7 @@ struct SettingsView: View {
             case .desktop:
                 group {
                     row("Animated wallpaper", "The animated cover plays behind your desktop icons") { toggle($animatedWallpaper) }
+                    row("Now-playing card", "A small card on the desktop with the song, its progress and the visualizer; drag it where you like") { toggle($desktopWidget) }
                     row("Cover on the lock screen wallpaper", "For songs with no animation, the cover becomes your wallpaper while locked", last: true) { toggle($coverWallpaper) }
                 }
             case .spotify:

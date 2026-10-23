@@ -69,6 +69,7 @@ final class AnimatedWallpaper {
             window.orderFront(nil)
             fresh.append(window)
         }
+        queue.defaultRate = AlbumDB.Daypart.now == .night ? 0.7 : 1  // a calmer pace at night
         queue.play()
         pendingWindows = fresh
         pendingPlayer = queue

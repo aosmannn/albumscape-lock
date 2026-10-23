@@ -10,6 +10,20 @@ import AppKit
 import SwiftUI
 
 enum CoverColor {
+    /// How light the cover is overall, 0 (black) to 1 (white); the time-of-day shuffle uses it to pick darker covers at night.
+    static func brightness(from url: URL) async -> Double? {
+        guard let (data, _) = try? await URLSession.shared.data(from: url), let image = NSBitmapImageRep(data: data) else { return nil }
+        let side = 16
+        guard let small = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: small) else { return nil }
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        var sum = 0.0
+        for x in 0..<side { for y in 0..<side { if let c = small.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) { sum += 0.299 * Double(c.redComponent) + 0.587 * Double(c.greenComponent) + 0.114 * Double(c.blueComponent) } } }
+        return sum / Double(side * side)
+    }
+
     static func vivid(from url: URL) async -> Color? {
         guard let (data, _) = try? await URLSession.shared.data(from: url), let image = NSBitmapImageRep(data: data) else { return nil }
         let side = 32

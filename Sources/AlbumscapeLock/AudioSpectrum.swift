@@ -240,7 +240,7 @@ struct SpectrumBars: View {
                                                    startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY)))
             }
         }
-        .shadow(color: accent.opacity(0.4), radius: 6)
+        .shadow(color: accent.opacity(0.35), radius: 3)
         .allowsHitTesting(false)
     }
 }

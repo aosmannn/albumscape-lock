@@ -109,7 +109,7 @@ final class PlayerModel: ObservableObject {
                 self.idleArt = shown
                 last = pick.url
                 Debug.log("idle shuffle: \(pick.album)")
-                try? await Task.sleep(for: .seconds(75))
+                try? await Task.sleep(for: .seconds(AlbumDB.Daypart.now == .night ? 150 : 75))  // slower at night
             }
         }
     }
@@ -275,6 +275,7 @@ final class PlayerModel: ObservableObject {
             art?.accent = accent
             if track?.key == now.key { self.art = art }
         }
+        if let cover = art?.coverURL, let b = await CoverColor.brightness(from: cover) { AlbumDB.shared.setBrightness(b, for: now) }
         Debug.log("art: cover=\(art?.coverURL != nil) motion=\(art?.motionURL != nil)")
         if incomplete { retryLookup(now) }
         let clipFound = await clipTask.value

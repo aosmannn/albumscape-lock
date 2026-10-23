@@ -371,8 +371,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let view = VStack(spacing: 28) {
                 ForEach(Array([[Float](repeating: 0, count: 48), levels { _ in 0.35 }, loud].enumerated()), id: \.offset) { _, l in
                     HStack(spacing: 50) {
-                        SpectrumBars(accent: accent, count: 6, barWidth: 3.5, spacing: 3, levels: l).frame(width: 36, height: 24)
-                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3, levels: l).frame(width: 32, height: 22)
+                        SpectrumBars(accent: accent, count: 6, barWidth: 3, spacing: 2.5, levels: l).frame(width: 32, height: 13)
+                        SpectrumBars(accent: accent, count: 5, barWidth: 3.5, spacing: 3, levels: l).frame(width: 30, height: 18)
                     }
                 }
             }.padding(40).background(Color(white: 0.1))
@@ -497,6 +497,9 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
             }
         }
+        // The small now-playing card on the desktop: while a song is loaded and the Mac is awake and unlocked.
+        if DesktopWidget.enabled, !locked, model.track != nil, model.idleArt == nil, CGDisplayIsAsleep(CGMainDisplayID()) == 0 { DesktopWidget.shared.show(model: model) }
+        else { DesktopWidget.shared.hide() }
         // The visualizer listens only while the player is on screen.
         let spectrum = AudioSpectrum.shared
         if AudioSpectrum.enabled, overlay.isShowing, model.idleArt == nil { spectrum.start() }  // listening while the player is up, paused or not, so it starts moving at once
