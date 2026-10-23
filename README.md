@@ -18,13 +18,9 @@ Whatever you're playing fills your lock screen: the album's animated cover, the 
 
 **1. Download it.** Click **[Download for Mac](https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.dmg)** and open the file. Drag **AlbumscapeLock** onto the **Applications** folder in the window that appears.
 
-**2. Allow it to open.** The app isn't signed by Apple yet, so your Mac blocks the first launch. Open **Terminal**, paste this, and press Return (you only do this once):
+**2. Open it from Applications.** The first time, your Mac says it can't check the app (it's new and not registered with Apple yet). That's expected: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. You only do this once.
 
-```
-xattr -dr com.apple.quarantine /Applications/AlbumscapeLock.app
-```
-
-**3. Open it.** A small icon appears in your menu bar. Click **Allow** if your Mac asks about Spotify or Music.
+**3. Allow Spotify or Music.** A small icon appears in your menu bar. Click **Allow** when your Mac asks to let it see what's playing.
 
 That's it. **Play a song** and lock your Mac.
 
@@ -42,7 +38,7 @@ That's it. **Play a song** and lock your Mac.
 ## Controls
 
 - **Click** the picture to shrink or enlarge it.
-- **L** turns lyrics on or off, **N** or **→** skips a cover in the shuffle (these two keys need one permission: [advanced setup](docs/ADVANCED.md)).
+- **Click the L** in the top-left corner for lyrics. When nothing is playing, **click** to skip to another animated cover.
 - **Menu bar icon:** music videos on/off, shuffle on/off, open at login.
 
 ## Good to know

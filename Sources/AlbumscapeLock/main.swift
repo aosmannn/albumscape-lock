@@ -349,8 +349,6 @@ final class Delegate: NSObject, NSApplicationDelegate {
     private var enabled = true
     private var locked = false
 
-    private var keys: KeyWatcher?
-
     func applicationDidFinishLaunching(_ note: Notification) {
         if let i = CommandLine.arguments.firstIndex(of: "--glass-test"), i + 1 < CommandLine.arguments.count {
             // Draws the card's glass over the current wallpaper into a PNG and quits: `AlbumscapeLock --glass-test out.png`
@@ -365,15 +363,6 @@ final class Delegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
         Debug.log("launched, skylight available: \(LockSpace.isAvailable)")
-        keys = KeyWatcher { [weak self] usage in
-            guard let self, self.overlay.isShowing else { return }  // keys only mean something while the video is up
-            if usage == 0x0F {
-                if self.model.idleArt == nil { self.model.toggleLyrics() }  // L: lyrics (not in the idle shuffle)
-            } else if self.model.idleArt != nil {
-                self.model.skipIdle()  // N or right arrow: the next animated cover
-            }
-        }
-        keys?.start()
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.didLock() }

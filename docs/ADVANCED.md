@@ -19,13 +19,9 @@ On your desktop it can also play the animated cover behind your icons, and put t
 
 ### Download
 
-1. Download `AlbumscapeLock-mac.zip` from the [latest release](https://github.com/aosmannn/albumscape-lock/releases/latest) and unzip it.
-2. Move `AlbumscapeLock.app` to `~/Applications`.
-3. The app isn't notarized, so macOS blocks the first launch. Remove the block once:
-   ```bash
-   xattr -dr com.apple.quarantine ~/Applications/AlbumscapeLock.app
-   ```
-4. Open it. It lives in the menu bar (a music-note TV icon). Allow **Automation** for Spotify / Music when macOS asks.
+1. Download `AlbumscapeLock-mac.dmg` from the [latest release](https://github.com/aosmannn/albumscape-lock/releases/latest), open it, and drag the app onto Applications.
+2. Open it. The first time, macOS says it can't check the app: open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+3. It lives in the menu bar. Allow **Automation** for Spotify / Music when macOS asks.
 
 ### Build from source
 
@@ -35,14 +31,14 @@ You need Xcode (for the Swift toolchain).
 git clone https://github.com/aosmannn/albumscape-lock.git
 cd albumscape-lock
 ./build-app.sh        # makes AlbumscapeLock.app next to the script
-open AlbumscapeLock.app
+./make-dmg.sh         # optional: the installer disk image
 ```
 
 ## Using it
 
 - Lock your Mac with a song playing. Click the picture to shrink it to the player; click the video to open it again.
 - **Menu bar icon:** preview, open at login, Spotify setup.
-- **Lyrics** show in the full-screen view; press **L** to turn them on or off (needs **Input Monitoring**: System Settings → Privacy & Security → Input Monitoring → Albumscape Lock, then reopen the app).
+- **Lyrics** show in the full-screen view; click the **L** in the top-left corner to turn them on or off.
 
 ### Connect Spotify (liked songs and the heart)
 
@@ -57,7 +53,7 @@ The app reads your Liked Songs once (and every 6 hours) and keeps the list on yo
 
 ## Skipping animated covers (when nothing is playing)
 
-While the shuffle is on, **click anywhere** on the lock screen, press **N** or the **right arrow** (needs Input Monitoring, like the L key), or use **Next animated cover** in the menu bar icon.
+While the shuffle is on, **click anywhere** on the lock screen, or use **Next animated cover** in the menu bar icon.
 
 ## Settings (optional)
 

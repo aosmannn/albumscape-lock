@@ -64,11 +64,11 @@ head.lineWidth = 5 * s; head.lineCapStyle = .round; head.lineJoinStyle = .round
 head.move(to: point(378, ay - 12)); head.line(to: point(392, ay)); head.line(to: point(378, ay + 12))
 head.stroke()
 
-// the one extra step, because the app isn't signed by Apple
-text("First time opening it? Paste this in Terminal once:", size: 11.5, weight: .semibold, color: ink.withAlphaComponent(0.5), centerX: 330, top: 296)
+// the one extra step, because the app isn't registered with Apple yet: done in System Settings, no Terminal
+text("The first time, your Mac asks if you trust it:", size: 11.5, weight: .semibold, color: ink.withAlphaComponent(0.5), centerX: 330, top: 296)
 let pill = NSBezierPath(roundedRect: box(70, 318, 520, 40), xRadius: 12 * s, yRadius: 12 * s)
 ink.setFill(); pill.fill()
-text("xattr -dr com.apple.quarantine /Applications/AlbumscapeLock.app", size: 11.5, weight: .medium, color: cream, centerX: 330, top: 330, mono: true)
+text("System Settings  ›  Privacy & Security  ›  Open Anyway", size: 13, weight: .semibold, color: cream, centerX: 330, top: 329)
 
 NSGraphicsContext.restoreGraphicsState()
 rep.size = NSSize(width: W, height: H)  // 144 dpi: Finder draws it at 660 x 400 points, sharp on a Retina screen
