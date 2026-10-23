@@ -6,7 +6,7 @@
 Whatever you're playing fills your lock screen: the album's animated cover, the music video, lyrics, the time.</p>
 
 <p align="center">
-  <a href="https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.zip"><b>⬇ &nbsp;Download for Mac</b></a>
+  <a href="https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.dmg"><b>⬇ &nbsp;Download for Mac</b></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/aosmannn/albumscape">Albumscape for Windows</a>
 </p>
@@ -16,7 +16,7 @@ Whatever you're playing fills your lock screen: the album's animated cover, the 
 
 ## Get started in 3 steps
 
-**1. Download it.** Click **[Download for Mac](https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.zip)** and unzip the file. Drag **AlbumscapeLock** into your **Applications** folder.
+**1. Download it.** Click **[Download for Mac](https://github.com/aosmannn/albumscape-lock/releases/latest/download/AlbumscapeLock-mac.dmg)** and open the file. Drag **AlbumscapeLock** onto the **Applications** folder in the window that appears.
 
 **2. Allow it to open.** The app isn't signed by Apple yet, so your Mac blocks the first launch. Open **Terminal**, paste this, and press Return (you only do this once):
 
