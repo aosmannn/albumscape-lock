@@ -493,6 +493,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.overlay.hide(keepPolling: true)
         }
         buildMenu()
+        Updates.shared.start()
         let atLogin = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: keyAELaunchedAsLogInItem)?.booleanValue == true
         if !CommandLine.arguments.contains("--preview"), !CommandLine.arguments.contains("--quiet"), !atLogin || !OnboardingWindow.done {
             // the first time the app opens, the setup guide; after that, opening it by hand shows its settings
@@ -624,6 +625,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The menu is built each time it opens, so it shows what's playing and only what applies right now.
+    @objc private func downloadUpdate() { Updates.shared.download() }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let now = NSMenuItem(title: model.track.map { "\($0.title) — \($0.artist)" } ?? "Nothing playing", action: nil, keyEquivalent: "")
@@ -642,6 +645,11 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(skip)
         }
         menu.addItem(.separator())
+        if let version = Updates.shared.newVersion {
+            let update = NSMenuItem(title: "Update to \(version)…", action: #selector(downloadUpdate), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
+        }
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)

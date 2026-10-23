@@ -45,6 +45,7 @@ final class SettingsWindow {
 /// A sidebar of sections on the left, like Droppy's settings, in Albumscape's colours; the chosen section on the right.
 struct SettingsView: View {
     @ObservedObject var model: PlayerModel
+    @ObservedObject private var updates = Updates.shared
     @ObservedObject private var spotify = SpotifyAccount.shared
     @ObservedObject private var link = PeerLink.shared
     let preview: () -> Void
@@ -256,11 +257,18 @@ struct SettingsView: View {
                     aboutText("What it is", "Your music, full screen on your Mac's lock screen. When a song plays in Spotify or Apple Music and you lock your Mac, its album's animated cover (Apple Music's motion art), or its music video, fills the screen, with the time, synced lyrics and a small player you can open by clicking. With nothing playing, it shuffles the animated covers of albums you've played, on the lock screen and behind your desktop icons.")
                     aboutText("How to use it", "Lock your Mac while a song plays. Click the picture to make it small (play, next, back, the speaker list, a heart for Spotify's liked songs) and click again to enlarge it. Click the L for lyrics. With nothing playing, click anywhere to skip to another cover. Everything else is in these settings.")
                     aboutText("Permissions, and why", "Automation (Spotify, Music): reads what's playing and sends play, pause and skip. Local Network: only if you link a Windows PC. System Audio: only for the visualizer, which measures the sound's levels; it never records or stores audio and never looks at your screen, and macOS shows its small audio dot while it listens.")
-                    aboutText("What it contacts", "Apple Music's public pages (covers and animations), LRCLIB (lyrics), YouTube (the video, in a hidden player), and Spotify only if you connect it. What it learns about your albums is saved on this Mac, in ~/Library/Application Support/AlbumscapeLock. Nothing is sent anywhere else.")
+                    aboutText("What it contacts", "Apple Music's public pages (covers and animations), LRCLIB (lyrics), YouTube (the video, in a hidden player), GitHub (to see if a newer version exists), and Spotify only if you connect it. What it learns about your albums is saved on this Mac, in ~/Library/Application Support/AlbumscapeLock. Nothing is sent anywhere else.")
                     aboutText("Good to know", "It draws over the lock screen with private macOS calls and reads Apple Music's public pages, so a Mac update or an Apple change can break it. It isn't on the App Store.")
                     Rectangle().fill(Settings.line).frame(height: 1)
                     row("Setup guide", "Go through the first-run steps again", last: false) {
                         Button("RUN SETUP") { OnboardingWindow.shared.show(model: model, preview: preview) }.buttonStyle(OutlineButton()).pointer()
+                    }
+                    row("Updates", updates.status.isEmpty ? "Version \(Updates.current). Checked at launch and every 12 hours" : updates.status, last: false) {
+                        if updates.newVersion != nil {
+                            Button("DOWNLOAD") { updates.download() }.buttonStyle(OutlineButton()).pointer()
+                        } else {
+                            Button(updates.checking ? "CHECKING…" : "CHECK") { Task { await updates.check(manual: true) } }.buttonStyle(OutlineButton()).pointer()
+                        }
                     }
                     row("GitHub", "Updates, the source and the advanced setup page", last: true) {
                         Button("OPEN") { NSWorkspace.shared.open(URL(string: "https://github.com/aosmannn/albumscape-lock")!) }.buttonStyle(OutlineButton()).pointer()
