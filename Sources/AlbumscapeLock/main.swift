@@ -405,6 +405,15 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             exit(0)
         }
         Debug.log("launched, skylight available: \(LockSpace.isAvailable)")
+        if UserDefaults.standard.bool(forKey: "spectrumSelfTest") {
+            // One-off check that the audio tap hears the Mac's own sound: listens while two soft system sounds play.
+            UserDefaults.standard.removeObject(forKey: "spectrumSelfTest")
+            AudioSpectrum.shared.start()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/afplay"); p.arguments = ["-v", "0.25", "/System/Library/Sounds/Submarine.aiff"]; try? p.run()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { AudioSpectrum.shared.stop() }
+        }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.didLock() }
