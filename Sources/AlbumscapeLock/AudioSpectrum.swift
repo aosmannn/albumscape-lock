@@ -223,29 +223,41 @@ final class AudioSpectrum: ObservableObject {
     }
 }
 
-/// The bars: each is one band of the real audio, in the song's colour, lit toward the top.
+/// The bars, drawn the way Droppy draws its visualizer: round-capped bars standing on the middle line, each one band of the
+/// real audio, filled with a gradient of the song's colour (lighter at the tips), growing from a dot when quiet.
 struct SpectrumBars: View {
     @ObservedObject private var spectrum = AudioSpectrum.shared
     let accent: Color
-    var count = SpectrumProcessor.bandCount
-    var spacing: CGFloat = 4
+    var count = 7
+    var barWidth: CGFloat = 3.5
+    var spacing: CGFloat = 3
+    /// Only for pictures of the design: levels (0...1) to draw instead of the live audio.
+    var levels: [Float]?
 
     var body: some View {
         Canvas { context, size in
-            let bands = spectrum.bands
+            let bands = levels ?? spectrum.bands
             let n = max(count, 1)
-            let barW = (size.width - spacing * CGFloat(n - 1)) / CGFloat(n)
+            let total = CGFloat(n) * barWidth + CGFloat(n - 1) * spacing
+            let startX = (size.width - total) / 2
+            let light = Color.white.opacity(0.55)
             for i in 0..<n {
-                // merge neighbouring bands when fewer bars are asked for
+                // each bar takes a slice of the bands (the low end gets its own bars; the top is shared)
                 let from = i * bands.count / n, to = max(from + 1, (i + 1) * bands.count / n)
                 let level = CGFloat(bands[from..<to].max() ?? 0)
-                let height = max(2, level * size.height)  // silence is a hairline, not nothing
-                let rect = CGRect(x: CGFloat(i) * (barW + spacing), y: size.height - height, width: barW, height: height)
-                context.fill(Path(roundedRect: rect, cornerRadius: barW / 2),
-                             with: .linearGradient(Gradient(colors: [accent, accent.opacity(0.55)]), startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: size.height)))
+                let height = max(barWidth, pow(level, 0.85) * size.height)
+                let rect = CGRect(x: startX + CGFloat(i) * (barWidth + spacing), y: (size.height - height) / 2, width: barWidth, height: height)
+                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2),
+                             with: .linearGradient(Gradient(colors: [accent.mix(with: light), accent]),
+                                                   startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY)))
             }
         }
-        .shadow(color: accent.opacity(0.45), radius: 10)
+        .shadow(color: accent.opacity(0.4), radius: 6)
         .allowsHitTesting(false)
     }
+}
+
+private extension Color {
+    /// A simple blend toward another colour, for the lit tips of the bars.
+    func mix(with other: Color) -> Color { Color(nsColor: (NSColor(self).blended(withFraction: 0.45, of: NSColor(other)) ?? NSColor(self))) }
 }

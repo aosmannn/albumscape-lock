@@ -363,6 +363,26 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             print("silence -> max level \(p.snapshot().max() ?? -1)")
             exit(0)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--bars-test"), i + 1 < CommandLine.arguments.count {
+            // The visualizer's design with made-up levels, only to look at the drawing: quiet, medium and loud.
+            let accent = Color(red: 0.66, green: 0.45, blue: 0.82)
+            func levels(_ f: (Int) -> Float) -> [Float] { (0..<48).map(f) }
+            let loud = levels { i in min(1, max(0.1, 0.95 - Float(i) * 0.012 + 0.22 * sin(Float(i) * 0.9))) }
+            let view = VStack(spacing: 28) {
+                ForEach(Array([[Float](repeating: 0, count: 48), levels { _ in 0.35 }, loud].enumerated()), id: \.offset) { _, l in
+                    HStack(spacing: 50) {
+                        SpectrumBars(accent: accent, count: 7, barWidth: 3.5, spacing: 3, levels: l).frame(width: 46, height: 28)
+                        SpectrumBars(accent: accent, count: 30, barWidth: 7, spacing: 6, levels: l).frame(width: 400, height: 96)
+                    }
+                }
+            }.padding(40).background(Color(white: 0.1))
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 2
+            if let cg = renderer.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+            }
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--card-test"), i + 2 < CommandLine.arguments.count, let picture = NSImage(contentsOfFile: CommandLine.arguments[i + 2]) {
             // The player card's glass over a picture: `AlbumscapeLock --card-test out.png picture.jpg`
             let screen = CGSize(width: 1470, height: 956)
