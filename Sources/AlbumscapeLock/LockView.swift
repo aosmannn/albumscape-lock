@@ -36,6 +36,10 @@ struct InfoOverlayView: View {
                 LyricsBadge(on: model.lyricsOn, hasLyrics: !model.lyrics.isEmpty, accent: accent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.leading, 32).padding(.top, 60)
             }
+            if model.idleArt == nil, model.track?.isPlaying == true, AudioSpectrum.shared.running {
+                SpectrumBars(accent: accent).frame(width: 360, height: 84)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing).padding(.trailing, 56).padding(.bottom, 56)
+            }
             if let toast = model.toast {
                 Text(toast).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 8).background(Capsule().fill(.black.opacity(0.55)))
@@ -354,6 +358,7 @@ struct MiniPlayer: View {
                     Text(model.track?.artist ?? "").font(.system(size: 12.5)).opacity(0.8).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if AudioSpectrum.shared.running, model.track?.isPlaying == true { SpectrumBars(accent: accent, count: 9, spacing: 2.5).frame(width: 44, height: 26) }
             }
 
             TimelineView(.periodic(from: .now, by: 0.2)) { context in

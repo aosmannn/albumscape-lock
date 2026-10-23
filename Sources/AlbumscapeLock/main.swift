@@ -348,6 +348,21 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var locked = false
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        if CommandLine.arguments.contains("--spectrum-test") {
+            // Feeds known tones through the analyser: a real measurement should light up the matching band.
+            for hz in [100.0, 440.0, 1000.0, 4000.0, 10000.0] {
+                let p = SpectrumProcessor()
+                let tone = (0..<16384).map { Float(0.5 * sin(2 * Double.pi * hz * Double($0) / 48000)) }
+                tone.withUnsafeBufferPointer { p.feed($0, channels: 1) }
+                let b = p.snapshot()
+                let top = b.indices.max { b[$0] < b[$1] }!
+                let lo = 40 * pow(14000.0 / 40.0, Double(top) / 48.0), hi = 40 * pow(14000.0 / 40.0, Double(top + 1) / 48.0)
+                print("tone \(Int(hz)) Hz -> loudest band \(top) (\(Int(lo))-\(Int(hi)) Hz), level \(String(format: "%.2f", b[top]))")
+            }
+            let p = SpectrumProcessor(); p.feed([Float](repeating: 0, count: 4096).withUnsafeBufferPointer { $0 }, channels: 1)
+            print("silence -> max level \(p.snapshot().max() ?? -1)")
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--card-test"), i + 2 < CommandLine.arguments.count, let picture = NSImage(contentsOfFile: CommandLine.arguments[i + 2]) {
             // The player card's glass over a picture: `AlbumscapeLock --card-test out.png picture.jpg`
             let screen = CGSize(width: 1470, height: 956)
@@ -454,6 +469,10 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 wall.hide()  // no animation for this song (or it is still being looked up): your own wallpaper shows
             }
         }
+        // The visualizer listens only while the player is on screen and a song plays.
+        let spectrum = AudioSpectrum.shared
+        if AudioSpectrum.enabled, overlay.isShowing, model.track?.isPlaying == true, model.idleArt == nil { spectrum.start() }
+        else if spectrum.running { spectrum.stop() }
         guard Wallpaper.enabled else {
             // Not changing the wallpaper: but if an earlier version left a cover on it, put your own back, once.
             if wallpaperShown != "own" {
