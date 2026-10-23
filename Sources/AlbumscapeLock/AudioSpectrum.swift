@@ -106,7 +106,43 @@ final class AudioSpectrum: ObservableObject {
     private var timer: Timer?
     private let queue = DispatchQueue(label: "albumscape.spectrum", qos: .userInteractive)
 
+    private var screenAudio: ScreenAudio?
+    private var starting = false
+
+    /// ScreenCaptureKit's audio first (what Droppy uses); if macOS won't give it, the Core Audio tap.
     func start() {
+        guard !running, !starting else { return }
+        starting = true
+        let capture = ScreenAudio(processor: processor)
+        Task { @MainActor in
+            defer { starting = false }
+            do {
+                try await capture.start()
+                screenAudio = capture
+                running = true
+                beginReporting(source: "screen audio")
+            } catch {
+                Debug.log("spectrum: screen audio not available (\(error.localizedDescription)); trying the audio tap")
+                startTap()
+            }
+        }
+    }
+
+    private func beginReporting(source: String) {
+        var ticks = 0
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.bands = self.processor.snapshot()
+                ticks += 1
+                if ticks % 90 == 0 { let r = self.processor.takeReport(); Debug.log("spectrum (\(source)): \(r.blocks) buffers in 3 s, loudest sample \(String(format: "%.3f", r.peak)), \(r.channels) channel(s), \(Int(self.processor.sampleRate)) Hz") }
+            }
+        }
+        Debug.log("spectrum: listening to the system audio (\(source))")
+    }
+
+    private func startTap() {
         guard !running, #available(macOS 14.2, *) else { return }
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
         description.uuid = UUID()
@@ -160,20 +196,12 @@ final class AudioSpectrum: ObservableObject {
         procID = proc
         guard AudioDeviceStart(aggregate, proc) == noErr else { stop(); return }
         running = true
-        var ticks = 0
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.bands = self.processor.snapshot()
-                ticks += 1
-                if ticks % 90 == 0 { let r = self.processor.takeReport(); Debug.log("spectrum: \(r.blocks) audio buffers in 3 s, loudest sample \(String(format: "%.3f", r.peak)), \(r.channels) channel(s) per buffer, \(Int(self.processor.sampleRate)) Hz") }
-            }
-        }
-        Debug.log("spectrum: listening to the system audio")
+        beginReporting(source: "audio tap")
     }
 
     func stop() {
         timer?.invalidate(); timer = nil
+        screenAudio?.stop(); screenAudio = nil
         if let procID, aggregateID != kAudioObjectUnknown { AudioDeviceStop(aggregateID, procID); AudioDeviceDestroyIOProcID(aggregateID, procID) }
         procID = nil
         if aggregateID != kAudioObjectUnknown { AudioHardwareDestroyAggregateDevice(aggregateID); aggregateID = AudioObjectID(kAudioObjectUnknown) }
