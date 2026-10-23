@@ -91,3 +91,29 @@ static float roundedBox(float2 p, float2 halfSize, float r) {
     float alpha = smoothstep(0.75, -0.75, d);
     return half4(col * alpha, alpha);
 }
+
+// MARK: - The clock's glass (still)
+// The layer is the album art behind the clock, cut to the shape of the digits. Each digit is drawn as a piece of the
+// same glass as the player card: the art bent inward at the edges, lifted a little, with a bright edge where it faces
+// the light (upper left) and a soft shade where it faces away. Nothing moves.
+[[ stitchable ]] half4 textGlass(float2 position, SwiftUI::Layer layer) {
+    float a = layer.sample(position).a;
+    if (a < 0.01) return half4(0);
+    float e = 2.5;
+    float2 g = float2(layer.sample(position + float2(e, 0)).a - layer.sample(position - float2(e, 0)).a,
+                      layer.sample(position + float2(0, e)).a - layer.sample(position - float2(0, e)).a);
+    float edge = clamp(length(g) * 1.2, 0.0, 1.0);
+    float2 outward = -g / max(length(g), 1e-4);  // alpha grows inward, so the edge faces the other way
+
+    float2 source = position - outward * edge * 7.0;  // bend: the art is drawn in from further inside the stroke
+    float split = edge * 1.4;
+    half4 c = half4(layer.sample(source - outward * split).r, layer.sample(source).g, layer.sample(source + outward * split).b, 1);
+    half3 col = c.rgb / max(layer.sample(source).a, half(0.001));  // the art's own colour (the layer is premultiplied)
+    col = col * 0.82 + 0.16;  // glass lifts what's behind it
+
+    float2 light = normalize(float2(-0.45, -0.9));  // upper left (y grows downward)
+    float facing = dot(outward, light);
+    col += half3(edge * max(facing, 0.0) * 0.75);
+    col *= half(1.0 - edge * max(-facing, 0.0) * 0.35);
+    return half4(col * a, a);
+}

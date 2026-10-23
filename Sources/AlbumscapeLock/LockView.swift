@@ -55,44 +55,51 @@ struct LockClock: View {
     @ObservedObject var model: PlayerModel
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+        TimelineView(.periodic(from: .now, by: 1)) { context in
             let time = UserDefaults.standard.bool(forKey: "clock24h")
                 ? context.date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(Locale(identifier: "en_GB")))
                 : context.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale.current))
                     .replacingOccurrences(of: " AM", with: "").replacingOccurrences(of: " PM", with: "")
                     .replacingOccurrences(of: "\u{202F}AM", with: "").replacingOccurrences(of: "\u{202F}PM", with: "")
-            let t = Float(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600))
             VStack(spacing: 0) {
                 Text(context.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .shadow(color: .black.opacity(0.35), radius: 10, y: 1)
-                liquidTime(time, t: t).padding(.top, -10)
+                glassTime(time).padding(.top, -10)
             }
         }
     }
 
-    /// The time as water: mostly clear, so the picture behind shows through; slow ripples on the outline, light moving
-    /// through it like caustics, bright edges facing the light and shaded edges facing away (Shaders/Liquid.metal).
-    private func liquidTime(_ time: String, t: Float) -> some View {
+    /// The time in the player card's glass (Shaders/Liquid.metal, textGlass): the album art behind the clock, cut to the
+    /// digits' shape and bent at their edges. Still; the digits roll over when the minute changes.
+    private func glassTime(_ time: String) -> some View {
         let digits = Text(time)
             .font(.system(size: 124, weight: .bold, design: .rounded).monospacedDigit())
-            .foregroundStyle(.white)
             .contentTransition(.numericText())
             .animation(.smooth(duration: 0.7), value: time)
             .padding(8)
-        let wave = ShaderLibrary.liquidWave(.float(t))
-        return ZStack {
-            digits
-                .distortionEffect(wave, maxSampleOffset: CGSize(width: 4, height: 4))
-                .layerEffect(ShaderLibrary.liquidShade(.float(t)), maxSampleOffset: CGSize(width: 3, height: 3))
-            digits
-                .distortionEffect(wave, maxSampleOffset: CGSize(width: 4, height: 4))
-                .layerEffect(ShaderLibrary.liquidShine(.float(t)), maxSampleOffset: CGSize(width: 3, height: 3))
-                .blendMode(.plusLighter)
-        }
-        .compositingGroup()
-        .blendMode(.plusLighter)
+        let screen = NSScreen.main?.frame.size ?? CGSize(width: 1470, height: 956)
+        return digits.hidden()
+            .overlay {
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .global)
+                    Group {
+                        if let cover = model.displayArt?.coverURL {
+                            AsyncImage(url: cover) { $0.resizable().aspectRatio(contentMode: .fill) } placeholder: { Color.white.opacity(0.35) }
+                                .frame(width: screen.width, height: screen.height).clipped()
+                                .offset(x: -frame.minX, y: -frame.minY)
+                        } else {
+                            LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.25)], startPoint: .top, endPoint: .bottom)
+                        }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                    .clipped()
+                }
+                .mask(digits.foregroundStyle(.white))
+                .layerEffect(ShaderLibrary.textGlass(), maxSampleOffset: CGSize(width: 10, height: 10))
+            }
+            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
 }
 
