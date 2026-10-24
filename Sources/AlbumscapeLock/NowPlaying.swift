@@ -50,6 +50,7 @@ final class NowPlayingReader {
 
     private let queue = DispatchQueue(label: "albumscape.applescript")
     private var lastChoice = ""
+    private var lastPlayed: [String: Date] = [:]  // when each source was last seen playing
 
     /// The track from whichever player is playing, else the first that has one.
     func read() async -> Track? {
@@ -57,14 +58,17 @@ final class NowPlayingReader {
         var paused: Track?
         for source in sources where running.contains(source.bundleID) {  // never launch a player by asking it
             guard let track = await run(source) else { continue }
-            if track.isPlaying { return track }
+            if track.isPlaying { lastPlayed[track.source] = Date(); return track }
             paused = paused ?? track
         }
         // Nothing playing in Spotify or Music: whatever else the Mac is playing (a browser video, Tidal...).
         let system = SystemNowPlaying.shared.read()
         let choice: String
         let result: Track?
-        if let system, system.isPlaying || paused == nil { choice = "system \(system.isPlaying ? "playing" : "paused")"; result = system }
+        if system?.isPlaying == true { lastPlayed[SystemNowPlaying.bundle] = Date() }
+        // Both paused: the one that played last stays (pausing a video must not bring back an older paused song)
+        let systemPlayedLast = (lastPlayed[SystemNowPlaying.bundle] ?? .distantPast) > (paused.flatMap { lastPlayed[$0.source] } ?? .distantPast)
+        if let system, system.isPlaying || paused == nil || systemPlayedLast { choice = "system \(system.isPlaying ? "playing" : "paused")"; result = system }
         else if paused == nil { choice = "last.fm"; result = await LastFM.shared.nowPlaying() }  // nothing at all: whatever Last.fm says is playing
         else { choice = "local paused" + (system != nil ? " (system \(system!.isPlaying ? "playing" : "paused"))" : ""); result = paused }
         if choice != lastChoice { lastChoice = choice; Debug.log("source: \(choice) -> \(result?.key ?? "nothing")") }
