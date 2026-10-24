@@ -136,6 +136,16 @@ final class PlayerModel: ObservableObject {
         return min(t.duration > 0 ? t.duration : .infinity, anchorPosition + date.timeIntervalSince(anchorDate))
     }
     private var wantedPlaying: (value: Bool, until: Date)?
+    private var seekHoldUntil = Date.distantPast
+    /// Dragging the progress bar: the clock jumps at once and a read that still shows the old spot is ignored for a moment.
+    func seek(to seconds: TimeInterval) {
+        guard let t = track, t.duration > 0, t.source != LastFM.bundle else { return }
+        let target = min(max(0, seconds), t.duration - 0.5)
+        anchorPosition = target; anchorDate = Date()
+        seekHoldUntil = Date().addingTimeInterval(1.5)
+        reader.seek(to: target, source: t.source)
+        refreshSoon([0.4, 1.0])
+    }
     private var anchorPosition: TimeInterval = 0
     private var anchorDate = Date()
 
@@ -189,7 +199,7 @@ final class PlayerModel: ObservableObject {
         sampledAt = Date()
         if let n = now {
             let predicted = anchorPosition + (n.isPlaying ? Date().timeIntervalSince(anchorDate) : 0)
-            if changedSong || track?.isPlaying != n.isPlaying || !n.isPlaying || abs(n.position - predicted) > 0.45 {
+            if changedSong || track?.isPlaying != n.isPlaying || (Date() >= seekHoldUntil && (!n.isPlaying || abs(n.position - predicted) > 0.45)) {
                 anchorPosition = n.position
                 anchorDate = Date()
             }

@@ -67,6 +67,13 @@ final class NowPlayingReader {
         queue.async { _ = NSAppleScript(source: "tell application id \"\(source)\" to \(verb)")?.executeAndReturnError(nil) }
     }
 
+    /// Moves the song to `seconds`, in the player it's coming from (Spotify and Music both take `set player position`).
+    func seek(to seconds: Double, source: String) {
+        guard !source.isEmpty, source != LastFM.bundle else { return }
+        let script = "tell application id \"\(source)\" to set player position to \(String(format: "%.2f", seconds))"
+        queue.async { _ = NSAppleScript(source: script)?.executeAndReturnError(nil) }
+    }
+
     private func run(_ source: Source) async -> Track? {
         await withCheckedContinuation { continuation in
             queue.async {

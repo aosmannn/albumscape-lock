@@ -360,6 +360,7 @@ struct MiniPlayer: View {
     var backdrop: GlassBackdrop?
     @State private var showOutputs = UserDefaults.standard.bool(forKey: "debugOutputsOpen")  // only the layout test sets this
     @State private var outputs: [OutputDevice] = []
+    @State private var scrub: Double?  // while the progress bar is being dragged: where, 0 to 1
 
     static let size = CGSize(width: 410, height: 160)
     /// How much taller the card gets for its output list: a divider, a heading and a row per device (at most three).
@@ -397,14 +398,25 @@ struct MiniPlayer: View {
                 let position = model.position(at: context.date)
                 let duration = model.track?.duration ?? 0
                 HStack(spacing: 10) {
-                    Text(timeString(position)).frame(width: 34, alignment: .leading)
-                    Capsule().fill(.white.opacity(0.28)).frame(height: 4)
-                        .overlay(alignment: .leading) {
-                            GeometryReader { geo in
-                                Capsule().fill(accent)
-                                    .frame(width: geo.size.width * (duration > 0 ? min(1, max(0, position / duration)) : 0))
-                            }
+                    Text(timeString(scrub.map { $0 * duration } ?? position)).frame(width: 34, alignment: .leading)
+                    GeometryReader { geo in
+                        let shown = scrub ?? (duration > 0 ? min(1, max(0, position / duration)) : 0)
+                        let thick: CGFloat = scrub == nil ? 4 : 8
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.28)).frame(height: thick)
+                            Capsule().fill(accent).frame(width: max(thick, geo.size.width * shown), height: thick)
                         }
+                        .frame(height: geo.size.height)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0)
+                            .onChanged { g in if duration > 0 { scrub = min(1, max(0, g.location.x / geo.size.width)) } }
+                            .onEnded { g in
+                                if duration > 0 { model.seek(to: min(1, max(0, g.location.x / geo.size.width)) * duration) }
+                                scrub = nil
+                            })
+                        .animation(.easeOut(duration: 0.12), value: scrub == nil)
+                    }
+                    .frame(height: 22)
                     Text("-" + timeString(max(0, duration - position)))
                         .frame(width: 38, alignment: .trailing)
                 }
