@@ -1,0 +1,78 @@
+// What the Mac says is playing, from any app (a browser tab, a video site, Tidal...), the same source as the Now Playing
+// menu. It's loaded into /usr/bin/perl, which macOS lets read it; the app reads one JSON line a second from perl's output
+// and sends commands (toggle, next, prev, seek N) down its input. Nothing here records or stores anything.
+#import <Foundation/Foundation.h>
+#import <dlfcn.h>
+#import <pthread.h>
+#import <stdio.h>
+
+typedef void (^InfoCb)(NSDictionary *);
+typedef void (^BoolCb)(Boolean);
+static void (*MRGetInfo)(dispatch_queue_t, InfoCb);
+static void (*MRGetPlaying)(dispatch_queue_t, BoolCb);
+static Boolean (*MRSend)(int, id);
+static void (*MRSetElapsed)(double);
+
+static NSString *text(id v) { return [v isKindOfClass:[NSString class]] ? v : @""; }
+static double number(id v) { return [v isKindOfClass:[NSNumber class]] ? [v doubleValue] : 0; }
+
+static void *pump(void *unused) {
+    dispatch_queue_t queue = dispatch_queue_create("albumscape.mr", DISPATCH_QUEUE_SERIAL);
+    while (1) {
+        @autoreleasepool {
+            __block NSDictionary *info = nil;
+            __block int playing = -1;
+            dispatch_semaphore_t a = dispatch_semaphore_create(0), b = dispatch_semaphore_create(0);
+            MRGetInfo(queue, ^(NSDictionary *i) { info = i; dispatch_semaphore_signal(a); });
+            BOOL got = dispatch_semaphore_wait(a, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) == 0;
+            MRGetPlaying(queue, ^(Boolean p) { playing = p; dispatch_semaphore_signal(b); });
+            dispatch_semaphore_wait(b, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+            NSMutableDictionary *out = [NSMutableDictionary dictionary];
+            if (!got) out[@"timeout"] = @YES;
+            NSString *title = text(info[@"kMRMediaRemoteNowPlayingInfoTitle"]);
+            if (title.length) {
+                double rate = number(info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"]);
+                double elapsed = number(info[@"kMRMediaRemoteNowPlayingInfoElapsedTime"]);
+                id stamp = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
+                if (playing > 0 && rate > 0 && [stamp isKindOfClass:[NSDate class]]) elapsed += -[(NSDate *)stamp timeIntervalSinceNow] * rate;
+                out[@"title"] = title;
+                out[@"artist"] = text(info[@"kMRMediaRemoteNowPlayingInfoArtist"]);
+                out[@"album"] = text(info[@"kMRMediaRemoteNowPlayingInfoAlbum"]);
+                out[@"duration"] = @(number(info[@"kMRMediaRemoteNowPlayingInfoDuration"]));
+                out[@"elapsed"] = @(elapsed);
+                out[@"playing"] = @(playing > 0);
+            }
+            NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
+            if (json) { fwrite(json.bytes, 1, json.length, stdout); fputc('\n', stdout); fflush(stdout); }
+        }
+        usleep(900 * 1000);
+    }
+    return NULL;
+}
+
+static void *listen(void *unused) {
+    char line[128];
+    while (fgets(line, sizeof line, stdin)) {
+        NSString *cmd = [[NSString stringWithUTF8String:line] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if ([cmd isEqualToString:@"toggle"]) MRSend(2, nil);
+        else if ([cmd isEqualToString:@"play"]) MRSend(0, nil);
+        else if ([cmd isEqualToString:@"pause"]) MRSend(1, nil);
+        else if ([cmd isEqualToString:@"next"]) MRSend(4, nil);
+        else if ([cmd isEqualToString:@"prev"]) MRSend(5, nil);
+        else if ([cmd hasPrefix:@"seek "] && MRSetElapsed) MRSetElapsed([[cmd substringFromIndex:5] doubleValue]);
+    }
+    return NULL;  // the app closed our input: it's gone
+}
+
+__attribute__((constructor)) static void start(void) {
+    void *h = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
+    if (!h) { printf("{\"error\":\"no MediaRemote\"}\n"); fflush(stdout); return; }
+    MRGetInfo = dlsym(h, "MRMediaRemoteGetNowPlayingInfo");
+    MRGetPlaying = dlsym(h, "MRMediaRemoteGetNowPlayingApplicationIsPlaying");
+    MRSend = dlsym(h, "MRMediaRemoteSendCommand");
+    MRSetElapsed = dlsym(h, "MRMediaRemoteSetElapsedTime");
+    if (!MRGetInfo || !MRGetPlaying || !MRSend) { printf("{\"error\":\"missing symbols\"}\n"); fflush(stdout); return; }
+    pthread_t t1, t2;
+    pthread_create(&t1, NULL, pump, NULL);
+    pthread_create(&t2, NULL, listen, NULL);
+}

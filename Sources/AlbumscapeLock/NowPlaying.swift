@@ -57,19 +57,26 @@ final class NowPlayingReader {
             if track.isPlaying { return track }
             paused = paused ?? track
         }
-        if paused == nil { return await LastFM.shared.nowPlaying() }  // nothing local: whatever Last.fm says is playing
+        // Nothing playing in Spotify or Music: whatever else the Mac is playing (a browser video, Tidal...).
+        if let system = SystemNowPlaying.shared.read(), system.isPlaying || paused == nil { return system }
+        if paused == nil { return await LastFM.shared.nowPlaying() }  // nothing at all: whatever Last.fm says is playing
         return paused
     }
 
     /// "playpause", "next track" or "previous track" to the player the song is coming from.
     func command(_ verb: String, source: String) {
         guard !source.isEmpty, source != LastFM.bundle else { return }
+        if source == SystemNowPlaying.bundle {
+            SystemNowPlaying.shared.send(["playpause": "toggle", "next track": "next", "previous track": "prev"][verb] ?? "")
+            return
+        }
         queue.async { _ = NSAppleScript(source: "tell application id \"\(source)\" to \(verb)")?.executeAndReturnError(nil) }
     }
 
     /// Moves the song to `seconds`, in the player it's coming from (Spotify and Music both take `set player position`).
     func seek(to seconds: Double, source: String) {
         guard !source.isEmpty, source != LastFM.bundle else { return }
+        if source == SystemNowPlaying.bundle { SystemNowPlaying.shared.send("seek \(String(format: "%.2f", seconds))"); return }
         let script = "tell application id \"\(source)\" to set player position to \(String(format: "%.2f", seconds))"
         queue.async { _ = NSAppleScript(source: script)?.executeAndReturnError(nil) }
     }
