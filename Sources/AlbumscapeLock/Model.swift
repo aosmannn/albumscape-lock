@@ -249,10 +249,16 @@ final class PlayerModel: ObservableObject {
         let clipTask = Task<YouTubeVideo?, Never> { [youtube] in
             try? await Task.sleep(for: .milliseconds(120))
             if Task.isCancelled || !Self.videosAllowed { return nil }
+            // watching a YouTube video in a browser: that very video, found from the tab, in step with the page
+            if now.source == SystemNowPlaying.bundle, let id = await SystemNowPlaying.shared.videoID(for: now) {
+                return YouTubeVideo(id: id, isVisualizer: false, offset: 0)
+            }
             return await youtube.video(for: now)
         }
         defer { clipTask.cancel() }
-        let spotifyCover = Self.quickCover(now.artworkURL)
+        let ownCover = Self.quickCover(now.artworkURL)
+        // Spotify's cover leads (it is the exact artwork); a browser's picture is only the fallback when no album is found
+        let spotifyCover = now.source == SystemNowPlaying.bundle ? nil : ownCover
         // The colour first of all: the one saved for this album, else the last song's (so it never drops to white), and
         // the real one worked out from the cover at once, in parallel with everything else.
         let carried = AlbumDB.shared.accent(for: now) ?? self.art?.accent
@@ -289,7 +295,7 @@ final class PlayerModel: ObservableObject {
             if let cover = spotifyCover { var same = art ?? AlbumArt(album: now.album); same.coverURL = cover; art = same }
             if Task.isCancelled { return }
             incomplete = found?.complete == false
-            if art?.coverURL == nil, let cover = spotifyCover {
+            if art?.coverURL == nil, let cover = ownCover {
                 var fallback = art ?? AlbumArt(album: now.album)  // Spotify's own cover, when the album lookup finds nothing
                 fallback.coverURL = cover
                 art = fallback

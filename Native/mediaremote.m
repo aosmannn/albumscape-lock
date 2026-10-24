@@ -59,6 +59,13 @@ static void *pump(void *unused) {
                 out[@"duration"] = @(number(info[@"kMRMediaRemoteNowPlayingInfoDuration"]));
                 out[@"elapsed"] = @(elapsed);
                 out[@"playing"] = @(playing > 0);
+                // the page's own picture (a video's thumbnail, a track's cover), saved once per title for the app to show
+                NSData *art = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
+                if ([art isKindOfClass:[NSData class]] && art.length > 0) {
+                    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"albumscape-art-%lu-%lu.img", (unsigned long)title.hash, (unsigned long)art.length]];
+                    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) [art writeToFile:path atomically:YES];
+                    out[@"art"] = path;
+                }
             }
             NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
             if (json) { fwrite(json.bytes, 1, json.length, stdout); fputc('\n', stdout); fflush(stdout); }

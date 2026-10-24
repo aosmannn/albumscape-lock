@@ -19,6 +19,7 @@ struct Track: Equatable {
     var spotifyID = ""  // "spotify:track:..." when the song is playing in Spotify
     var source = ""  // bundle id of the player, so the controls reach the right one
     var appBundle = ""  // the app it is really playing in (for its icon), when `source` is a general one
+    var rawTitle = ""  // the title exactly as the player gave it (a browser tab's, before it is tidied), to find its tab
 
     /// Same song, whatever the playback state.
     var key: String { "\(artist)|\(title)".lowercased() }

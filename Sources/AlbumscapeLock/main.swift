@@ -226,9 +226,43 @@ final class Overlay {
         return frame
     }
 
+    /// Where the player has been dragged to (as a distance from its usual place), kept between locks.
+    private var cardOffset: CGSize {
+        get { CGSize(width: UserDefaults.standard.double(forKey: "cardOffsetX"), height: UserDefaults.standard.double(forKey: "cardOffsetY")) }
+        set { UserDefaults.standard.set(Double(newValue.width), forKey: "cardOffsetX"); UserDefaults.standard.set(Double(newValue.height), forKey: "cardOffsetY") }
+    }
+
     private func cardFrame(on screen: NSScreen) -> NSRect {
+        var rect = defaultCardFrame(on: screen)
+        let o = cardOffset
+        rect.origin.x += o.width; rect.origin.y += o.height
+        // never off the screen: if it would be, the usual place
+        return screen.frame.insetBy(dx: 20, dy: 20).intersects(rect) && screen.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) ? rect : defaultCardFrame(on: screen)
+    }
+
+    private func defaultCardFrame(on screen: NSScreen) -> NSRect {
         let frame = screen.frame, size = MiniPlayer.size
         return NSRect(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.235, width: size.width, height: size.height)
+    }
+
+    private var watchingDrag = false
+    private var dragRebuild: DispatchWorkItem?
+    /// The player can be dragged by its background, like Droppy's. Where it was dropped is remembered, and the glass is
+    /// redrawn there a moment later (it shows the wallpaper behind it, so it has to know where it now is).
+    private func watchCardDrag(_ window: NSWindow) {
+        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { [weak self, weak window] _ in
+            MainActor.assumeIsolated {
+                guard let self, let window, !self.model.expanded, let screen = self.screens.first else { return }
+                let usual = self.defaultCardFrame(on: screen)
+                self.cardOffset = CGSize(width: window.frame.minX - usual.minX, height: window.frame.minY + MiniPlayer.maxExtra - usual.minY)
+                self.dragRebuild?.cancel()
+                let work = DispatchWorkItem { [weak self, weak window] in
+                    MainActor.assumeIsolated { if let self, let window, !self.model.expanded { window.contentView = self.frostedCard() } }
+                }
+                self.dragRebuild = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+            }
+        }
     }
 
     /// The glass the system's own view draws (NSGlassEffectView), top-aligned in a window that is always tall enough for the
@@ -353,6 +387,7 @@ final class Overlay {
                     let host = TapHostingView(rootView: FullScreenView(model: self.model))
                     host.onBadgeClick = { [model = self.model] in model.toggleLyrics() }
                     host.onBackgroundClick = { [model = self.model] in if model.idleArt == nil { model.expanded = false } else { model.skipIdle() } }
+                    window.isMovableByWindowBackground = false  // full screen is not dragged
                     window.isOpaque = true
                     window.backgroundColor = .black
                     window.contentView = host
@@ -384,6 +419,8 @@ final class Overlay {
                     window.backgroundColor = .clear
                     window.contentView = self.frostedCard()
                     window.setFrame(self.cardWindowFrame(on: self.screens[index]), display: true)  // tall, clear below the card
+                    window.isMovableByWindowBackground = true
+                    if !self.watchingDrag { self.watchingDrag = true; self.watchCardDrag(window) }
                     window.alphaValue = 0
                     window.orderFrontRegardless()
                     NSAnimationContext.runAnimationGroup { context in
@@ -403,6 +440,7 @@ final class Overlay {
 
     func hide(keepPolling: Bool = false) {
         guard !windows.isEmpty else { return }
+        watchingDrag = false
         windows.forEach { $0.orderOut(nil); $0.contentView = nil }
         windows.removeAll()
         infoWindows.forEach { $0.orderOut(nil); $0.contentView = nil }

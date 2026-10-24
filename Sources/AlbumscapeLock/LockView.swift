@@ -344,7 +344,7 @@ private struct SongInfo: View {
 
 private func timeString(_ seconds: TimeInterval) -> String {
     let s = Int(seconds.rounded())
-    return String(format: "%d:%02d", s / 60, s % 60)
+    return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
 }
 
 // MARK: - Mini player
@@ -399,7 +399,7 @@ struct MiniPlayer: View {
                 let position = model.position(at: context.date)
                 let duration = model.track?.duration ?? 0
                 HStack(spacing: 10) {
-                    Text(timeString(scrub.map { $0 * duration } ?? position)).frame(width: 34, alignment: .leading)
+                    Text(timeString(scrub.map { $0 * duration } ?? position)).lineLimit(1).fixedSize().frame(minWidth: 34, alignment: .leading)
                     GeometryReader { geo in
                         let shown = scrub ?? (duration > 0 ? min(1, max(0, position / duration)) : 0)
                         let thick: CGFloat = scrub == nil ? 4 : 8
@@ -418,8 +418,7 @@ struct MiniPlayer: View {
                         .animation(.easeOut(duration: 0.12), value: scrub == nil)
                     }
                     .frame(height: 22)
-                    Text("-" + timeString(max(0, duration - position)))
-                        .frame(width: 38, alignment: .trailing)
+                    Text("-" + timeString(max(0, duration - position))).lineLimit(1).fixedSize().frame(minWidth: 38, alignment: .trailing)
                 }
             }
             .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(accent)

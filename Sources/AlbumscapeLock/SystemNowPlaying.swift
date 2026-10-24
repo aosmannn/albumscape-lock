@@ -23,10 +23,43 @@ final class SystemNowPlaying {
     func read() -> Track? {
         guard Self.enabled else { return nil }
         start()
-        guard let d = latest, Date().timeIntervalSince(lastLine) < 4, let title = d["title"] as? String, !title.isEmpty else { return nil }
-        return Track(title: title, artist: d["artist"] as? String ?? "", album: d["album"] as? String ?? "",
+        guard let d = latest, Date().timeIntervalSince(lastLine) < 4, let raw = d["title"] as? String, !raw.isEmpty else { return nil }
+        let app = d["app"] as? String ?? ""
+        var title = raw, artist = d["artist"] as? String ?? ""
+        if app != "com.spotify.client", app != "com.apple.Music" { (title, artist) = Self.tidy(title: raw, artist: artist) }
+        return Track(title: title, artist: artist, album: d["album"] as? String ?? "",
                      isPlaying: d["playing"] as? Bool ?? false, position: d["elapsed"] as? Double ?? 0,
-                     duration: d["duration"] as? Double ?? 0, source: Self.bundle, appBundle: d["app"] as? String ?? "")
+                     duration: d["duration"] as? Double ?? 0, artworkURL: (d["art"] as? String).map { URL(fileURLWithPath: $0).absoluteString } ?? "",
+                     source: Self.bundle, appBundle: app, rawTitle: raw)
+    }
+
+    /// A video site's title is "Artist - Song (Official Video)" and its "artist" the channel ("ArtistVEVO", "Artist - Topic"):
+    /// pull the artist and the song out, so the album, lyrics and video can be found like any other song.
+    static func tidy(title: String, artist: String) -> (String, String) {
+        var t = title, a = artist
+        for suffix in [" - Topic", "VEVO", " Official", "Official"] where a.hasSuffix(suffix) { a = String(a.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces) }
+        let noise = try? NSRegularExpression(pattern: #"\s*[\(\[][^\)\]]*(official|lyric|audio|video|visuali[sz]er|music|hd|4k|explicit|remaster)[^\)\]]*[\)\]]"#, options: .caseInsensitive)
+        if let noise { t = noise.stringByReplacingMatches(in: t, range: NSRange(t.startIndex..., in: t), withTemplate: "") }
+        t = t.replacingOccurrences(of: #"\s*\|.*$"#, with: "", options: .regularExpression)
+        if let dash = t.range(of: " - ") {
+            let left = String(t[..<dash.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let right = String(t[dash.upperBound...]).trimmingCharacters(in: .whitespaces)
+            if !left.isEmpty, !right.isEmpty { a = left; t = right }
+        }
+        return (t.trimmingCharacters(in: .whitespaces), a)
+    }
+
+    private var videoIDs: [String: String?] = [:]
+
+    /// The YouTube video this song is playing as, found from the browser tab that has that title open (the tab's
+    /// address names the video). nil for anything that isn't YouTube, or when no tab matches.
+    func videoID(for track: Track) async -> String? {
+        let key = track.rawTitle + "|" + track.appBundle
+        if let known = videoIDs[key] { return known }
+        let id = await BrowserTabs.youtubeID(title: track.rawTitle, bundle: track.appBundle)
+        videoIDs[key] = id
+        Debug.log("browser tab video: \(id ?? "none") for \(track.rawTitle)")
+        return id
     }
 
     func send(_ command: String) {
@@ -72,5 +105,51 @@ final class SystemNowPlaying {
             if latest?["title"] as? String != obj["title"] as? String { Debug.log("system now playing: \((obj["title"] as? String) ?? "nothing") [\((obj["app"] as? String) ?? "?")] \((obj["timeout"] as? Bool) == true ? "(timed out)" : "")") }
             latest = obj
         }
+    }
+}
+
+/// Asks a browser which of its tabs has a given title open, and reads that tab's address. (Chromium browsers and Safari
+/// can be asked this through Automation without any extra setting; macOS asks once to allow it.)
+enum BrowserTabs {
+    static func youtubeID(title: String, bundle: String) async -> String? {
+        guard !bundle.isEmpty, !title.isEmpty, NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == bundle }) else { return nil }
+        let safari = bundle == "com.apple.Safari"
+        let script = """
+        tell application id "\(bundle)"
+            set out to ""
+            repeat with w in windows
+                repeat with t in tabs of w
+                    set out to out & (\(safari ? "name" : "title") of t) & tab & (URL of t) & linefeed
+                end repeat
+            end repeat
+            return out
+        end tell
+        """
+        let text: String? = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                var error: NSDictionary?
+                let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
+                if let error { Debug.log("browser tabs: \(error[NSAppleScript.errorMessage] ?? error)") }
+                continuation.resume(returning: result?.stringValue)
+            }
+        }
+        guard let text else { return nil }
+        let wanted = title.lowercased()
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2, parts[0].lowercased().contains(wanted) || wanted.contains(parts[0].lowercased().replacingOccurrences(of: " - youtube", with: "")) else { continue }
+            if let id = videoID(in: parts[1]) { return id }
+        }
+        return nil
+    }
+
+    private static func videoID(in address: String) -> String? {
+        guard let url = URL(string: address), let host = url.host?.lowercased() else { return nil }
+        if host.hasSuffix("youtube.com") {
+            if url.path == "/watch", let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "v" })?.value { return id }
+            if url.path.hasPrefix("/shorts/") { return String(url.path.dropFirst(8)) }
+        }
+        if host == "youtu.be" { return String(url.path.dropFirst()) }
+        return nil
     }
 }
