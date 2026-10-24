@@ -18,6 +18,7 @@ struct Track: Equatable {
     var artworkURL = ""  // the player's own cover address (Spotify gives one), for when the album lookup finds nothing
     var spotifyID = ""  // "spotify:track:..." when the song is playing in Spotify
     var source = ""  // bundle id of the player, so the controls reach the right one
+    var appBundle = ""  // the app it is really playing in (for its icon), when `source` is a general one
 
     /// Same song, whatever the playback state.
     var key: String { "\(artist)|\(title)".lowercased() }

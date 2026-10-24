@@ -26,7 +26,7 @@ final class SystemNowPlaying {
         guard let d = latest, Date().timeIntervalSince(lastLine) < 4, let title = d["title"] as? String, !title.isEmpty else { return nil }
         return Track(title: title, artist: d["artist"] as? String ?? "", album: d["album"] as? String ?? "",
                      isPlaying: d["playing"] as? Bool ?? false, position: d["elapsed"] as? Double ?? 0,
-                     duration: d["duration"] as? Double ?? 0, source: Self.bundle)
+                     duration: d["duration"] as? Double ?? 0, source: Self.bundle, appBundle: d["app"] as? String ?? "")
     }
 
     func send(_ command: String) {
@@ -69,7 +69,7 @@ final class SystemNowPlaying {
             buffer.removeSubrange(buffer.startIndex...nl)
             guard let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
             lastLine = Date()
-            if latest?["title"] as? String != obj["title"] as? String { Debug.log("system now playing: \((obj["title"] as? String) ?? "nothing") \((obj["timeout"] as? Bool) == true ? "(timed out)" : "")") }
+            if latest?["title"] as? String != obj["title"] as? String { Debug.log("system now playing: \((obj["title"] as? String) ?? "nothing") [\((obj["app"] as? String) ?? "?")] \((obj["timeout"] as? Bool) == true ? "(timed out)" : "")") }
             latest = obj
         }
     }

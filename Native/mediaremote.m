@@ -12,6 +12,9 @@ static void (*MRGetInfo)(dispatch_queue_t, InfoCb);
 static void (*MRGetPlaying)(dispatch_queue_t, BoolCb);
 static Boolean (*MRSend)(int, id);
 static void (*MRSetElapsed)(double);
+static void (*MRGetClient)(dispatch_queue_t, void (^)(id));
+static CFStringRef (*MRClientBundle)(id);
+static CFStringRef (*MRClientParentBundle)(id);
 
 static NSString *text(id v) { return [v isKindOfClass:[NSString class]] ? v : @""; }
 static double number(id v) { return [v isKindOfClass:[NSNumber class]] ? [v doubleValue] : 0; }
@@ -29,6 +32,21 @@ static void *pump(void *unused) {
             dispatch_semaphore_wait(b, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
             NSMutableDictionary *out = [NSMutableDictionary dictionary];
             if (!got) out[@"timeout"] = @YES;
+            // which app it is (a browser's own id when a tab is playing, not its helper process)
+            if (MRGetClient && (MRClientBundle || MRClientParentBundle)) {
+                __block NSString *app = @"";
+                dispatch_semaphore_t c = dispatch_semaphore_create(0);
+                MRGetClient(queue, ^(id client) {
+                    if (client) {
+                        CFStringRef parent = MRClientParentBundle ? MRClientParentBundle(client) : NULL;
+                        CFStringRef own = MRClientBundle ? MRClientBundle(client) : NULL;
+                        app = parent ? (__bridge NSString *)parent : (own ? (__bridge NSString *)own : @"");
+                    }
+                    dispatch_semaphore_signal(c);
+                });
+                dispatch_semaphore_wait(c, dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC));
+                out[@"app"] = app;
+            }
             NSString *title = text(info[@"kMRMediaRemoteNowPlayingInfoTitle"]);
             if (title.length) {
                 double rate = number(info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"]);
@@ -71,6 +89,9 @@ __attribute__((constructor)) static void start(void) {
     MRGetPlaying = dlsym(h, "MRMediaRemoteGetNowPlayingApplicationIsPlaying");
     MRSend = dlsym(h, "MRMediaRemoteSendCommand");
     MRSetElapsed = dlsym(h, "MRMediaRemoteSetElapsedTime");
+    MRGetClient = dlsym(h, "MRMediaRemoteGetNowPlayingClient");
+    MRClientBundle = dlsym(h, "MRNowPlayingClientGetBundleIdentifier");
+    MRClientParentBundle = dlsym(h, "MRNowPlayingClientGetParentAppBundleIdentifier");
     if (!MRGetInfo || !MRGetPlaying || !MRSend) { printf("{\"error\":\"missing symbols\"}\n"); fflush(stdout); return; }
     pthread_t t1, t2;
     pthread_create(&t1, NULL, pump, NULL);

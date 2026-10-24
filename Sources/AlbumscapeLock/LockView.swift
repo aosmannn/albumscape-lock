@@ -373,7 +373,7 @@ struct MiniPlayer: View {
                     .background(Color.white.opacity(0.12))
                 .frame(width: 54, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(alignment: .bottomLeading) { SourceBadge(source: model.track?.source ?? "").padding(3) }
+                .overlay(alignment: .bottomLeading) { SourceBadge(track: model.track).padding(3) }
                 .contentShape(Rectangle())
                 .onTapGesture { model.expanded = true }
 
@@ -541,24 +541,39 @@ private struct HoverPill: ViewModifier {
     }
 }
 
-/// The small round mark of the player a song comes from, on the corner of the cover.
+/// The real icon of the app a song is playing in (Spotify, Music, the browser...), taken from the installed app, on the
+/// corner of the cover. Nothing is drawn by hand.
 private struct SourceBadge: View {
-    let source: String
+    let track: Track?
+    private static var cache: [String: NSImage] = [:]
+
+    private var bundle: String {
+        guard let track else { return "" }
+        let id = track.appBundle.isEmpty ? track.source : track.appBundle
+        return id == SystemNowPlaying.bundle || id == LastFM.bundle ? "" : id
+    }
+
+    private static func icon(for id: String) -> NSImage? {
+        if let hit = cache[id] { return hit }
+        // a browser's helper process ("com.google.Chrome.helper...") belongs to the app named by a shorter id
+        var parts = id.split(separator: ".").map(String.init)
+        while parts.count >= 2 {
+            let candidate = parts.joined(separator: ".")
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: candidate) {
+                let image = NSWorkspace.shared.icon(forFile: url.path)
+                cache[id] = image
+                return image
+            }
+            parts.removeLast()
+        }
+        return nil
+    }
+
     var body: some View {
-        if source == "com.spotify.client" {
-            ZStack {
-                Circle().fill(Color(red: 0.12, green: 0.84, blue: 0.38))
-                Path { p in
-                    for (i, w) in [8.0, 6.4, 4.6].enumerated() {
-                        let y = 5.2 + Double(i) * 2.9
-                        p.move(to: CGPoint(x: 9 - w / 2 - 0.5, y: y + 1))
-                        p.addQuadCurve(to: CGPoint(x: 9 + w / 2 + 0.5, y: y + 1), control: CGPoint(x: 9, y: y - 1.2 + (i == 0 ? 0 : 0.2)))
-                    }
-                }.stroke(Color.black.opacity(0.85), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
-            }.frame(width: 18, height: 18)
-        } else if source == "com.apple.Music" {
-            ZStack { Circle().fill(Color(red: 0.98, green: 0.22, blue: 0.33)); Image(systemName: "music.note").font(.system(size: 9, weight: .bold)).foregroundStyle(.white) }
-                .frame(width: 18, height: 18)
+        if !bundle.isEmpty, let image = Self.icon(for: bundle) {
+            Image(nsImage: image).resizable().interpolation(.high)
+                .frame(width: 20, height: 20)
+                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
         }
     }
 }
