@@ -373,6 +373,7 @@ struct MiniPlayer: View {
                     .background(Color.white.opacity(0.12))
                 .frame(width: 54, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(alignment: .bottomLeading) { SourceBadge(source: model.track?.source ?? "").padding(3) }
                 .contentShape(Rectangle())
                 .onTapGesture { model.expanded = true }
 
@@ -433,17 +434,20 @@ struct MiniPlayer: View {
                     Button { model.toggleLike() } label: {
                         Image(systemName: model.liked ? "heart.fill" : "heart").font(.system(size: 16))
                             .foregroundStyle(model.liked ? accent : .white).opacity(model.liked ? 1 : 0.85)
-                    }.buttonStyle(.plain)
+                            .frame(width: 40, height: 38).contentShape(Rectangle())
+                            .hoverPill()
+                    }.buttonStyle(PressStyle())
                     Spacer()
                     Button {
                         outputs = AudioOutputs.list()
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showOutputs.toggle() }
                         model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0  // tells a glass window that holds this view to grow too
                     } label: {
-                        Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
-                            .frame(width: 46, height: 46)
-                            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(showOutputs ? 0.16 : 0)))
+                        Image(systemName: "airpods").font(.system(size: 17, weight: .semibold)).opacity(showOutputs ? 1 : 0.85)
+                            .frame(width: 44, height: 38)
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(showOutputs ? 0.16 : 0)).padding(.vertical, 1))
                             .contentShape(Rectangle())
+                            .hoverPill()
                     }.buttonStyle(PressStyle())
                 }
             }
@@ -515,8 +519,47 @@ struct MiniPlayer: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: size, weight: .bold))
                 .contentTransition(.symbolEffect(.replace))
-                .frame(width: 44, height: 36).contentShape(Rectangle())
+                .frame(width: 52, height: 38).contentShape(Rectangle())
+                .hoverPill()
         }.buttonStyle(PressStyle())
+    }
+}
+
+extension View {
+    /// A soft rounded square that lights up behind a control when the pointer is over it.
+    func hoverPill(corner: CGFloat = 13) -> some View { modifier(HoverPill(corner: corner)) }
+}
+
+private struct HoverPill: ViewModifier {
+    let corner: CGFloat
+    @State private var over = false
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: corner, style: .continuous).fill(.white.opacity(over ? 0.17 : 0)).padding(.vertical, 1))
+            .onHover { over = $0 }
+            .animation(.easeOut(duration: 0.15), value: over)
+    }
+}
+
+/// The small round mark of the player a song comes from, on the corner of the cover.
+private struct SourceBadge: View {
+    let source: String
+    var body: some View {
+        if source == "com.spotify.client" {
+            ZStack {
+                Circle().fill(Color(red: 0.12, green: 0.84, blue: 0.38))
+                Path { p in
+                    for (i, w) in [8.0, 6.4, 4.6].enumerated() {
+                        let y = 5.2 + Double(i) * 2.9
+                        p.move(to: CGPoint(x: 9 - w / 2 - 0.5, y: y + 1))
+                        p.addQuadCurve(to: CGPoint(x: 9 + w / 2 + 0.5, y: y + 1), control: CGPoint(x: 9, y: y - 1.2 + (i == 0 ? 0 : 0.2)))
+                    }
+                }.stroke(Color.black.opacity(0.85), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+            }.frame(width: 18, height: 18)
+        } else if source == "com.apple.Music" {
+            ZStack { Circle().fill(Color(red: 0.98, green: 0.22, blue: 0.33)); Image(systemName: "music.note").font(.system(size: 9, weight: .bold)).foregroundStyle(.white) }
+                .frame(width: 18, height: 18)
+        }
     }
 }
 
@@ -544,7 +587,8 @@ private struct SkipButton: View {
             Image(systemName: symbol).font(.system(size: 22, weight: .bold))
                 .symbolEffect(.bounce.byLayer, options: .nonRepeating, value: tick)
                 .offset(x: slide).opacity(fade)
-                .frame(width: 44, height: 36).contentShape(Rectangle())
+                .frame(width: 52, height: 38).contentShape(Rectangle())
+                .hoverPill()
         }.buttonStyle(PressStyle())
     }
 }

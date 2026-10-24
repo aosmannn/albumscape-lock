@@ -95,7 +95,7 @@ final class Overlay {
             window.isReleasedWhenClosed = false
             window.isOpaque = true
             window.backgroundColor = .black
-            window.level = NSWindow.Level(rawValue: onLockScreen ? windowLevel : Int(CGShieldingWindowLevel()))
+            window.level = NSWindow.Level(rawValue: onLockScreen ? windowLevel : (CommandLine.arguments.contains("--normal-level") ? NSWindow.Level.floating.rawValue : Int(CGShieldingWindowLevel())))
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
             window.ignoresMouseEvents = onLockScreen == false
             let full = TapHostingView(rootView: FullScreenView(model: model))
@@ -281,7 +281,9 @@ final class Overlay {
         // The way Apple's Liquid Glass guide builds it: a SwiftUI view with .glassEffect(.regular) floating over the
         // content, in a clear window. `glassMode`: liquid (the default: the glass drawn here over the wallpaper), swiftui (macOS's
         // own glassEffect) or appkit (NSGlassEffectView), to compare the three.
-        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "liquid"
+        var mode = UserDefaults.standard.string(forKey: "glassMode") ?? "liquid"
+        // `--glass appkit|clear|swiftui|liquid` tries one for this run only, without changing the saved choice
+        if let i = CommandLine.arguments.firstIndex(of: "--glass"), i + 1 < CommandLine.arguments.count { mode = CommandLine.arguments[i + 1] }
         if mode == "appkit" || mode == "clear", #available(macOS 26.0, *) { return appKitGlassCard(clear: mode == "clear") }
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)
