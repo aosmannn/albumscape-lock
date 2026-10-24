@@ -249,10 +249,8 @@ final class PlayerModel: ObservableObject {
         let clipTask = Task<YouTubeVideo?, Never> { [youtube] in
             try? await Task.sleep(for: .milliseconds(120))
             if Task.isCancelled || !Self.videosAllowed { return nil }
-            // watching a YouTube video in a browser: that very video, found from the tab, in step with the page
-            if now.source == SystemNowPlaying.bundle, let id = await SystemNowPlaying.shared.videoID(for: now) {
-                return YouTubeVideo(id: id, isVisualizer: false, offset: 0)
-            }
+            // something playing in a browser (or any other app the system reports): its picture only, never a video
+            if now.source == SystemNowPlaying.bundle { return nil }
             return await youtube.video(for: now)
         }
         defer { clipTask.cancel() }
@@ -344,7 +342,7 @@ final class PlayerModel: ObservableObject {
     /// The Music videos setting changed: look for (or drop) this song's video now.
     func videoSettingChanged() {
         guard let song = track else { return }
-        if !Self.videosAllowed { video = nil; return }
+        if !Self.videosAllowed || song.source == SystemNowPlaying.bundle { video = nil; return }
         Task { [weak self] in
             guard let self else { return }
             let found = await self.youtube.video(for: song)
