@@ -281,7 +281,7 @@ final class Overlay {
         // The way Apple's Liquid Glass guide builds it: a SwiftUI view with .glassEffect(.regular) floating over the
         // content, in a clear window. `glassMode`: liquid (the default: the glass drawn here over the wallpaper), swiftui (macOS's
         // own glassEffect) or appkit (NSGlassEffectView), to compare the three.
-        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "appkit"
+        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "liquid"
         if mode == "appkit" || mode == "clear", #available(macOS 26.0, *) { return appKitGlassCard(clear: mode == "clear") }
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)

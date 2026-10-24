@@ -98,7 +98,7 @@ struct SettingsView: View {
 
     @AppStorage("showOnLock") private var showOnLock = true
     @AppStorage("displays") private var displays = "all"
-    @AppStorage("glassMode") private var glassMode = "appkit"
+    @AppStorage("glassMode") private var glassMode = "liquid"
     @AppStorage("lastfmOn") private var lastfmOn = false
     @AppStorage("lastfmUser") private var lastfmUser = ""
     @AppStorage("lastfmKey") private var lastfmKey = ""
@@ -214,8 +214,8 @@ struct SettingsView: View {
                             toggle($audioVisualizer)
                         }
                     }
-                    row("Player glass", "Apple's own Liquid Glass (regular, clear, or through SwiftUI), or glass the app draws over your wallpaper. Applies the next time the player shrinks", below: true) {
-                        segments(["Apple", "Apple clear", "Apple (SwiftUI)", "Drawn by app"], selected: ["appkit", "clear", "swiftui", "liquid"].firstIndex(of: glassMode) ?? 0) { glassMode = ["appkit", "clear", "swiftui", "liquid"][$0] }
+                    row("Player glass", "Glass the app draws over your wallpaper, or Apple's own (experimental). Applies the next time the player shrinks", below: true) {
+                        segments(["Drawn by app", "Apple (experimental)"], selected: glassMode == "swiftui" ? 1 : 0) { glassMode = $0 == 1 ? "swiftui" : "liquid" }
                     }
                     row("Try it", "See it full screen for 20 seconds", last: true) { Button("SHOW IT NOW", action: preview).buttonStyle(OutlineButton()).pointer() }
                 }
