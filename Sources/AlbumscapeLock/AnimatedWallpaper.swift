@@ -36,6 +36,7 @@ final class AnimatedWallpaper {
     func show(_ link: String) {
         guard Self.enabled, let url = URL(string: link) else { hide(); return }
         observeScreens()
+        screenSignature = Self.signature()
         // Already showing this one, or still loading it: leave it be. (Starting it again on every check, before it had a
         // frame, meant it never got one, and left invisible windows piling up.)
         if link == current { if !windows.isEmpty { player?.play() }; return }
@@ -164,12 +165,21 @@ final class AnimatedWallpaper {
         current = nil
     }
 
+    private var screenSignature = AnimatedWallpaper.signature()
+    private var lastRebuild = Date.distantPast
+    private static func signature() -> String { NSScreen.screens.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY)),\(Int($0.frame.width)),\(Int($0.frame.height))" }.joined(separator: ";") }
+
     private func observeScreens() {
         guard !observing else { return }
         observing = true
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, let link = self.current else { return }
+                // Our own windows make macOS send this too (and rebuilding them sent it again, without end): only a real
+                // change in the set of screens counts, and never twice within a couple of seconds.
+                guard let self, let link = self.current, Self.signature() != self.screenSignature,
+                      Date().timeIntervalSince(self.lastRebuild) > 2 else { return }
+                self.screenSignature = Self.signature()
+                self.lastRebuild = Date()
                 self.tearDown()
                 self.show(link)  // a screen was added, removed or resized
             }
