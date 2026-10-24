@@ -49,6 +49,7 @@ final class NowPlayingReader {
     ]
 
     private let queue = DispatchQueue(label: "albumscape.applescript")
+    private var lastChoice = ""
 
     /// The track from whichever player is playing, else the first that has one.
     func read() async -> Track? {
@@ -60,9 +61,14 @@ final class NowPlayingReader {
             paused = paused ?? track
         }
         // Nothing playing in Spotify or Music: whatever else the Mac is playing (a browser video, Tidal...).
-        if let system = SystemNowPlaying.shared.read(), system.isPlaying || paused == nil { return system }
-        if paused == nil { return await LastFM.shared.nowPlaying() }  // nothing at all: whatever Last.fm says is playing
-        return paused
+        let system = SystemNowPlaying.shared.read()
+        let choice: String
+        let result: Track?
+        if let system, system.isPlaying || paused == nil { choice = "system \(system.isPlaying ? "playing" : "paused")"; result = system }
+        else if paused == nil { choice = "last.fm"; result = await LastFM.shared.nowPlaying() }  // nothing at all: whatever Last.fm says is playing
+        else { choice = "local paused" + (system != nil ? " (system \(system!.isPlaying ? "playing" : "paused"))" : ""); result = paused }
+        if choice != lastChoice { lastChoice = choice; Debug.log("source: \(choice) -> \(result?.key ?? "nothing")") }
+        return result
     }
 
     /// "playpause", "next track" or "previous track" to the player the song is coming from.
