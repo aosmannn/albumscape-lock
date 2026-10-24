@@ -439,7 +439,7 @@ struct MiniPlayer: View {
                     Spacer()
                     Button {
                         outputs = AudioOutputs.list()
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showOutputs.toggle() }
+                        withAnimation(.timingCurve(0.2, 0.9, 0.25, 1, duration: 0.38)) { showOutputs.toggle() }
                         model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0  // tells a glass window that holds this view to grow too
                     } label: {
                         Image(systemName: model.outputSymbol).font(.system(size: 17, weight: .semibold)).opacity(showOutputs ? 1 : 0.85)
@@ -470,8 +470,6 @@ struct MiniPlayer: View {
                 playerContent
                 outputsList
                     .frame(width: Self.size.width, height: Self.outputsExtra(outputs.count), alignment: .top)
-                    .opacity(showOutputs ? 1 : 0)
-                    .animation(.easeOut(duration: showOutputs ? 0.3 : 0.12).delay(showOutputs ? 0.12 : 0), value: showOutputs)
             }
             .frame(width: cardSize.width, height: cardSize.height, alignment: .top)
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
@@ -664,6 +662,11 @@ struct LiquidGlassCard: View {
             .layerEffect(ShaderLibrary.glassLens(.float2(size), .float(radius), .float2(0.2, -0.1), .float(0)),
                          maxSampleOffset: CGSize(width: 60, height: 60))
             .frame(width: size.width, height: size.height)
+            // the glass catches more light along its lower edge (as in the reference): dark above, brighter toward the bottom
+            .overlay {
+                LinearGradient(stops: [.init(color: .clear, location: 0.5), .init(color: .white.opacity(0.26), location: 1)], startPoint: .top, endPoint: .bottom)
+                    .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous)).allowsHitTesting(false)
+            }
     }
 }
 

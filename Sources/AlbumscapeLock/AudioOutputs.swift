@@ -19,7 +19,16 @@ struct OutputDevice: Identifiable, Equatable {
 enum AudioOutputs {
     static func list() -> [OutputDevice] {
         let current = defaultOutput()
-        return allDevices().filter(hasOutput).map { OutputDevice(id: $0, name: name(of: $0), isCurrent: $0 == current, symbol: symbol(of: $0), volume: volume(of: $0)) }
+        return allDevices().filter(hasOutput).filter { !isOurTap($0) }.map { OutputDevice(id: $0, name: name(of: $0), isCurrent: $0 == current, symbol: symbol(of: $0), volume: volume(of: $0)) }
+    }
+
+    /// The visualizer's own listening device ("Albumscape Lock tap"): it isn't somewhere to play sound, so it's never listed.
+    private static func isOurTap(_ device: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var type: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        AudioObjectGetPropertyData(device, &address, 0, nil, &size, &type)
+        return type == kAudioDeviceTransportTypeAggregate || name(of: device).hasPrefix("Albumscape Lock")
     }
 
     /// The device's main volume, the same control as the sound menu's slider.
