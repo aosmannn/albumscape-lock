@@ -425,9 +425,9 @@ struct MiniPlayer: View {
 
             ZStack {
                 HStack(spacing: 38) {
-                    control("backward.fill", 22, model.previous)
+                    SkipButton(symbol: "backward.fill", forward: false, action: model.previous)
                     control(model.track?.isPlaying == true ? "pause.fill" : "play.fill", 28, model.playPause)
-                    control("forward.fill", 22, model.next)
+                    SkipButton(symbol: "forward.fill", forward: true, action: model.next)
                 }
                 HStack {
                     Button { model.toggleLike() } label: {
@@ -438,6 +438,7 @@ struct MiniPlayer: View {
                     Button {
                         outputs = AudioOutputs.list()
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showOutputs.toggle() }
+                        model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0  // tells a glass window that holds this view to grow too
                     } label: {
                         Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
                             .frame(width: 46, height: 46)
@@ -514,6 +515,35 @@ struct MiniPlayer: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: size, weight: .bold))
                 .contentTransition(.symbolEffect(.replace))
+                .frame(width: 44, height: 36).contentShape(Rectangle())
+        }.buttonStyle(PressStyle())
+    }
+}
+
+/// Next and back: the arrows ripple, shoot off in their direction and come back in from the other side, so a press feels
+/// like winding forward or rewinding.
+private struct SkipButton: View {
+    let symbol: String
+    let forward: Bool
+    let action: () -> Void
+    @State private var tick = 0
+    @State private var slide: CGFloat = 0
+    @State private var fade = 1.0
+
+    var body: some View {
+        Button {
+            action()
+            tick += 1
+            let d: CGFloat = forward ? 1 : -1
+            withAnimation(.easeIn(duration: 0.12)) { slide = 18 * d; fade = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                slide = -18 * d  // jumps to the other side while invisible
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) { slide = 0; fade = 1 }
+            }
+        } label: {
+            Image(systemName: symbol).font(.system(size: 22, weight: .bold))
+                .symbolEffect(.bounce.byLayer, options: .nonRepeating, value: tick)
+                .offset(x: slide).opacity(fade)
                 .frame(width: 44, height: 36).contentShape(Rectangle())
         }.buttonStyle(PressStyle())
     }

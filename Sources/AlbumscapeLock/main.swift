@@ -231,13 +231,58 @@ final class Overlay {
         return NSRect(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.235, width: size.width, height: size.height)
     }
 
+    /// The glass the system's own view draws (NSGlassEffectView), top-aligned in a window that is always tall enough for the
+    /// output list. Opening the list animates the glass view's height; the player inside is fixed to the top and is
+    /// revealed as the glass grows. The same private variant selector the qt-liquid-glass project documents picks "clear".
+    @available(macOS 26.0, *)
+    private func appKitGlassCard(clear: Bool) -> NSView {
+        let size = MiniPlayer.size, tall = size.height + MiniPlayer.maxExtra
+        model.outputsHeight = 0
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: size.width, height: tall))
+        let glass = NSGlassEffectView(frame: NSRect(x: 0, y: tall - size.height, width: size.width, height: size.height))
+        glass.style = .regular
+        glass.cornerRadius = 30
+        if clear { Self.setPrivate(glass, "set_variant:", 13) }  // 13 = clear glass: almost no blur, light refraction
+        let holder = NSView(frame: NSRect(x: 0, y: 0, width: size.width, height: size.height))
+        holder.wantsLayer = true
+        holder.layer?.masksToBounds = true
+        let host = TapHostingView(rootView: MiniPlayer(model: model, nativeGlass: true))
+        host.frame = NSRect(x: 0, y: size.height - tall, width: size.width, height: tall)
+        host.autoresizingMask = [.minYMargin]  // stays pinned to the top while the glass grows
+        holder.addSubview(host)
+        glass.contentView = holder
+        container.addSubview(glass)
+        glassCard = glass
+        outputsWatch = model.$outputsHeight.dropFirst().receive(on: DispatchQueue.main).sink { [weak glass] extra in
+            guard let glass else { return }
+            let height = size.height + extra
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.45
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.25, 1)
+                glass.animator().frame = NSRect(x: 0, y: tall - height, width: size.width, height: height)
+            }
+        }
+        return container
+    }
+
+    /// Calls one of NSGlassEffectView's private integer setters, if this macOS has it.
+    private static func setPrivate(_ view: NSView, _ name: String, _ value: Int) {
+        let sel = NSSelectorFromString(name)
+        guard view.responds(to: sel), let imp = class_getMethodImplementation(type(of: view), sel) else { return }
+        typealias Setter = @convention(c) (AnyObject, Selector, Int) -> Void
+        unsafeBitCast(imp, to: Setter.self)(view, sel, value)
+    }
+
+    private weak var glassCard: NSView?
+
     private func frostedCard() -> NSView {
         // Liquid Glass is the default on macOS 26: the system's own material (NSGlassEffectView), not a blur drawn by hand.
         // `defaults write com.adam.albumscape-lock nativeGlass -bool false` brings the old frosted card back.
         // The way Apple's Liquid Glass guide builds it: a SwiftUI view with .glassEffect(.regular) floating over the
         // content, in a clear window. `glassMode`: liquid (the default: the glass drawn here over the wallpaper), swiftui (macOS's
         // own glassEffect) or appkit (NSGlassEffectView), to compare the three.
-        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "swiftui"
+        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "appkit"
+        if mode == "appkit" || mode == "clear", #available(macOS 26.0, *) { return appKitGlassCard(clear: mode == "clear") }
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)
             let origin = CGPoint(x: card.minX - screen.frame.minX, y: screen.frame.maxY - card.maxY)
