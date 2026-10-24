@@ -44,12 +44,37 @@ enum AudioOutputs {
         AudioObjectGetPropertyData(device, &address, 0, nil, &size, &type)
         switch type {
         case kAudioDeviceTransportTypeBuiltIn: return "laptopcomputer"
-        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "headphones"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return bluetoothSymbol(of: device)
         case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort: return "display"
         case kAudioDeviceTransportTypeAirPlay: return "airplayaudio"
         case kAudioDeviceTransportTypeUSB: return "hifispeaker"
         default: return "speaker.wave.2"
         }
+    }
+
+    /// What Bluetooth audio this is: Core Audio's model id for it is the Bluetooth "product vendor" pair in hex
+    /// ("201b 4c": Apple), which tells AirPods (and which kind) from other headphones whatever the owner named them.
+    private static func bluetoothSymbol(of device: AudioDeviceID) -> String {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyModelUID, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var model: CFString? = nil
+        var size = UInt32(MemoryLayout<CFString?>.size)
+        let status = withUnsafeMutablePointer(to: &model) { AudioObjectGetPropertyData(device, &address, 0, nil, &size, $0) }
+        let parts = (status == noErr ? (model as String? ?? "") : "").split(separator: " ").compactMap { Int($0, radix: 16) }
+        if parts.count >= 2, parts[1] == 0x4C {  // Apple
+            switch parts[0] {
+            case 0x200A: return "airpodsmax"
+            case 0x200E, 0x2014, 0x2024, 0x2027: return "airpodspro"
+            case 0x2006, 0x2009, 0x200B, 0x2010, 0x2011, 0x2012, 0x2016, 0x2017: return "headphones"  // Beats
+            default: return "airpods"
+            }
+        }
+        return "headphones"
+    }
+
+    /// The icon of the output that is playing now, for the button on the player.
+    static func currentSymbol() -> String {
+        guard let device = allDevices().first(where: { $0 == defaultOutput() }) else { return "speaker.wave.2" }
+        return symbol(of: device)
     }
 
     @discardableResult

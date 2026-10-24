@@ -17,6 +17,8 @@ final class PlayerModel: ObservableObject {
     @Published var expanded = true
     /// The small player's output list is open (the card grows downward to hold it).
     @Published var outputsHeight: CGFloat = 0
+    /// The icon of the speaker or headphones that sound is going to, shown on the player's output button.
+    @Published var outputSymbol = AudioOutputs.currentSymbol()
     /// Synced lyrics for the song, and whether to show them (the L button; remembered).
     @Published private(set) var lyrics: [LyricLine] = []
     @Published var lyricsOn: Bool = UserDefaults.standard.object(forKey: "lyrics") as? Bool ?? true {
@@ -205,6 +207,8 @@ final class PlayerModel: ObservableObject {
             }
         }
         if now != track { track = now }
+        let symbol = AudioOutputs.currentSymbol()
+        if symbol != outputSymbol { outputSymbol = symbol }
         updateIdle()
         guard changedSong else { return }
         // The last song's cover and colour stay until the new ones are ready (no blank, no white flash); only its video and

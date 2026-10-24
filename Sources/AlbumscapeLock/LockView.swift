@@ -443,9 +443,9 @@ struct MiniPlayer: View {
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showOutputs.toggle() }
                         model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0  // tells a glass window that holds this view to grow too
                     } label: {
-                        Image(systemName: "airpods").font(.system(size: 17, weight: .semibold)).opacity(showOutputs ? 1 : 0.85)
+                        Image(systemName: model.outputSymbol).font(.system(size: 17, weight: .semibold)).opacity(showOutputs ? 1 : 0.85)
                             .frame(width: 44, height: 38)
-                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(showOutputs ? 0.16 : 0)).padding(.vertical, 1))
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.black.opacity(showOutputs ? 0.34 : 0)).padding(.vertical, 1))
                             .contentShape(Rectangle())
                             .hoverPill()
                     }.buttonStyle(PressStyle())
