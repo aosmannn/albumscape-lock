@@ -54,22 +54,21 @@ final class SystemNowPlaying {
     /// The YouTube video this song is playing as, found from the browser tab that has that title open (the tab's
     /// address names the video). nil for anything that isn't YouTube, or when no tab matches.
     func videoID(for track: Track) async -> String? {
-        let key = track.rawTitle + "|" + track.appBundle
-        if let known = videoIDs[key] { return known }
         let address = await tabURL(for: track)
         let id = address.flatMap { BrowserTabs.videoID(in: $0) }
-        videoIDs[key] = id
         Debug.log("browser tab video: \(id ?? "none") for \(track.rawTitle)")
         return id
     }
 
-    private var tabURLs: [String: String?] = [:]
-    /// The address of the browser tab playing this (cached per title).
+    private var tabURLs: [String: String] = [:]
+    private var tabMisses: [String: Date] = [:]
+    /// The address of the browser tab playing this: remembered once found; a miss is tried again after 10 seconds.
     func tabURL(for track: Track) async -> String? {
         let key = track.rawTitle + "|" + track.appBundle
         if let known = tabURLs[key] { return known }
+        if let miss = tabMisses[key], Date().timeIntervalSince(miss) < 10 { return nil }
         let address = await BrowserTabs.tabURL(title: track.rawTitle, bundle: track.appBundle)
-        tabURLs[key] = address
+        if let address { tabURLs[key] = address } else { tabMisses[key] = Date() }
         return address
     }
 
@@ -122,16 +121,18 @@ final class SystemNowPlaying {
 /// Asks a browser which of its tabs has a given title open, and reads that tab's address. (Chromium browsers and Safari
 /// can be asked this through Automation without any extra setting; macOS asks once to allow it.)
 enum BrowserTabs {
-    /// The address of the tab that has this title open, or nil.
+    /// The address of the tab that has this title open, or nil. The browser itself picks the matching tab, so only that
+    /// one tab's address is read (and it is quick even with hundreds of tabs open).
     static func tabURL(title: String, bundle: String) async -> String? {
         guard !bundle.isEmpty, !title.isEmpty, NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == bundle }) else { return nil }
         let safari = bundle == "com.apple.Safari"
+        let wanted = title.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let script = """
         tell application id "\(bundle)"
             set out to ""
             repeat with w in windows
-                repeat with t in tabs of w
-                    set out to out & (\(safari ? "name" : "title") of t) & tab & (URL of t) & linefeed
+                repeat with t in (tabs of w whose \(safari ? "name" : "title") contains "\(wanted)")
+                    set out to out & (URL of t) & linefeed
                 end repeat
             end repeat
             return out
@@ -145,14 +146,11 @@ enum BrowserTabs {
                 continuation.resume(returning: result?.stringValue)
             }
         }
-        guard let text else { return nil }
-        let wanted = title.lowercased()
-        for line in text.split(separator: "\n") {
-            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2, parts[0].lowercased().contains(wanted) || wanted.contains(parts[0].lowercased().replacingOccurrences(of: " - youtube", with: "")) else { continue }
-            return parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = text?.split(separator: "\n").first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty else {
+            Debug.log("browser tabs: no tab of \(bundle) has the title \"\(title)\"")
+            return nil
         }
-        return nil
+        return first
     }
 
     static func videoID(in address: String) -> String? {
