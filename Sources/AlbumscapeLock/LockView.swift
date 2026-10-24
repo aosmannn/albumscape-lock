@@ -425,8 +425,7 @@ struct MiniPlayer: View {
                     Spacer()
                     Button {
                         outputs = AudioOutputs.list()
-                        showOutputs.toggle()
-                        model.outputsHeight = showOutputs ? Self.outputsExtra(outputs.count) : 0
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showOutputs.toggle() }
                     } label: {
                         Image(systemName: "airplayaudio").font(.system(size: 16)).opacity(showOutputs ? 1 : 0.85)
                             .frame(width: 46, height: 46)
@@ -443,27 +442,35 @@ struct MiniPlayer: View {
         .frame(width: Self.size.width, height: Self.size.height)
     }
 
+    /// The window is as tall as the card can ever be, clear below the card, so opening the list is only the card's own
+    /// height animating (the glass stretches with a spring); the window itself never has to be resized.
+    static var maxExtra: CGFloat { outputsExtra(3) }
+
     var body: some View {
-        VStack(spacing: 0) {
-            playerContent
-            if showOutputs {
+        let extra = showOutputs ? Self.outputsExtra(outputs.count) : 0
+        let cardSize = CGSize(width: Self.size.width, height: Self.size.height + extra)
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                playerContent
                 outputsList
                     .frame(width: Self.size.width, height: Self.outputsExtra(outputs.count), alignment: .top)
-                    .clipped()
-                    .transition(.opacity)
+                    .opacity(showOutputs ? 1 : 0)
+                    .animation(.easeOut(duration: showOutputs ? 0.3 : 0.12).delay(showOutputs ? 0.12 : 0), value: showOutputs)
+            }
+            .frame(width: cardSize.width, height: cardSize.height, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .modifier(GlassBackground(enabled: nativeGlass == false))
+            .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: cardSize) } }
+            .overlay(alignment: .top) {
+                if let toast = model.toast {
+                    Text(toast).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(.black.opacity(0.6)))
+                        .padding(.top, 6).transition(.opacity)
+                }
             }
         }
-        .frame(width: Self.size.width, height: Self.size.height + model.outputsHeight, alignment: .top)
+        .frame(width: Self.size.width, height: Self.size.height + Self.maxExtra, alignment: .top)
         .onAppear { if showOutputs && outputs.isEmpty { outputs = AudioOutputs.list() } }
-        .modifier(GlassBackground(enabled: nativeGlass == false))
-        .background { if let backdrop { LiquidGlassCard(backdrop: backdrop, size: CGSize(width: Self.size.width, height: Self.size.height + model.outputsHeight)) } }
-        .overlay(alignment: .top) {
-            if let toast = model.toast {
-                Text(toast).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(.black.opacity(0.6)))
-                    .padding(.top, 6).transition(.opacity)
-            }
-        }
     }
 
     private var accent: Color { model.art?.accent ?? .white }
@@ -502,7 +509,12 @@ struct MiniPlayer: View {
 
 private struct GlassBackground: ViewModifier {
     let enabled: Bool
-    func body(content: Content) -> some View { if enabled { content.liquidGlass(cornerRadius: 30) } else { content } }
+    func body(content: Content) -> some View {
+        if enabled {
+            // Apple's recipe: the glass sits in a GlassEffectContainer, so it can stretch and blend as one surface
+            if #available(macOS 26.0, *) { GlassEffectContainer { content.liquidGlass(cornerRadius: 30) } } else { content.liquidGlass(cornerRadius: 30) }
+        } else { content }
+    }
 }
 
 extension View {

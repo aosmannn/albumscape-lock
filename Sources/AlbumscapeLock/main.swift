@@ -150,14 +150,6 @@ final class Overlay {
             }
         }
         modeWatch = model.$expanded.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }
-        // The small player's output list makes the card taller; the window grows downward to match.
-        outputsWatch = model.$outputsHeight.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] extra in
-            guard let self, !self.model.expanded, let window = self.windows.first, let screen = self.screens.first else { return }
-            var frame = self.cardFrame(on: screen)
-            frame.origin.y -= extra
-            frame.size.height += extra
-            window.setFrame(frame, display: true)  // at once, so the window and the card inside it change size together
-        }
         Debug.log("overlay shown on \(windows.count) screen(s), lock=\(onLockScreen)")
     }
 
@@ -226,6 +218,14 @@ final class Overlay {
         }
     }
 
+    /// The small player's window: the card at its place, and clear room under it for the output list to grow into.
+    private func cardWindowFrame(on screen: NSScreen) -> NSRect {
+        var frame = cardFrame(on: screen)
+        frame.origin.y -= MiniPlayer.maxExtra
+        frame.size.height += MiniPlayer.maxExtra
+        return frame
+    }
+
     private func cardFrame(on screen: NSScreen) -> NSRect {
         let frame = screen.frame, size = MiniPlayer.size
         return NSRect(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.235, width: size.width, height: size.height)
@@ -237,7 +237,7 @@ final class Overlay {
         // The way Apple's Liquid Glass guide builds it: a SwiftUI view with .glassEffect(.regular) floating over the
         // content, in a clear window. `glassMode`: liquid (the default: the glass drawn here over the wallpaper), swiftui (macOS's
         // own glassEffect) or appkit (NSGlassEffectView), to compare the three.
-        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "liquid"
+        let mode = UserDefaults.standard.string(forKey: "glassMode") ?? "swiftui"
         if mode == "liquid", let screen = screens.first, let url = NSWorkspace.shared.desktopImageURL(for: screen), let image = NSImage(contentsOf: url) {
             let card = cardFrame(on: screen)
             let origin = CGPoint(x: card.minX - screen.frame.minX, y: screen.frame.maxY - card.maxY)
@@ -297,7 +297,6 @@ final class Overlay {
             let full = screens[index].frame, card = cardFrame(on: screens[index])
             let info = index < infoWindows.count ? infoWindows[index] : nil
             if model.expanded {
-                model.outputsHeight = 0
                 // card -> full screen: the card fades out, the video fades in at full size, then the song info
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = 0.1
@@ -337,7 +336,7 @@ final class Overlay {
                     window.isOpaque = false
                     window.backgroundColor = .clear
                     window.contentView = self.frostedCard()
-                    window.setFrame(card, display: true)
+                    window.setFrame(self.cardWindowFrame(on: self.screens[index]), display: true)  // tall, clear below the card
                     window.alphaValue = 0
                     window.orderFrontRegardless()
                     NSAnimationContext.runAnimationGroup { context in
@@ -399,7 +398,6 @@ final class Delegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             UserDefaults.standard.set(true, forKey: "debugOutputsOpen")
             let screen = CGSize(width: 1470, height: 956), card = MiniPlayer.size
             let extra = MiniPlayer.outputsExtra(AudioOutputs.list().count)
-            model.outputsHeight = extra
             let origin = CGPoint(x: (screen.width - card.width) / 2, y: 500)
             let m: CGFloat = 30, total = CGSize(width: card.width + m * 2, height: card.height + extra + m * 2)
             let view = ZStack {
