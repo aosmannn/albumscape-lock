@@ -56,10 +56,21 @@ final class SystemNowPlaying {
     func videoID(for track: Track) async -> String? {
         let key = track.rawTitle + "|" + track.appBundle
         if let known = videoIDs[key] { return known }
-        let id = await BrowserTabs.youtubeID(title: track.rawTitle, bundle: track.appBundle)
+        let address = await tabURL(for: track)
+        let id = address.flatMap { BrowserTabs.videoID(in: $0) }
         videoIDs[key] = id
         Debug.log("browser tab video: \(id ?? "none") for \(track.rawTitle)")
         return id
+    }
+
+    private var tabURLs: [String: String?] = [:]
+    /// The address of the browser tab playing this (cached per title).
+    func tabURL(for track: Track) async -> String? {
+        let key = track.rawTitle + "|" + track.appBundle
+        if let known = tabURLs[key] { return known }
+        let address = await BrowserTabs.tabURL(title: track.rawTitle, bundle: track.appBundle)
+        tabURLs[key] = address
+        return address
     }
 
     func send(_ command: String) {
@@ -111,7 +122,8 @@ final class SystemNowPlaying {
 /// Asks a browser which of its tabs has a given title open, and reads that tab's address. (Chromium browsers and Safari
 /// can be asked this through Automation without any extra setting; macOS asks once to allow it.)
 enum BrowserTabs {
-    static func youtubeID(title: String, bundle: String) async -> String? {
+    /// The address of the tab that has this title open, or nil.
+    static func tabURL(title: String, bundle: String) async -> String? {
         guard !bundle.isEmpty, !title.isEmpty, NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == bundle }) else { return nil }
         let safari = bundle == "com.apple.Safari"
         let script = """
@@ -138,18 +150,77 @@ enum BrowserTabs {
         for line in text.split(separator: "\n") {
             let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
             guard parts.count == 2, parts[0].lowercased().contains(wanted) || wanted.contains(parts[0].lowercased().replacingOccurrences(of: " - youtube", with: "")) else { continue }
-            if let id = videoID(in: parts[1]) { return id }
+            return parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
     }
 
-    private static func videoID(in address: String) -> String? {
+    static func videoID(in address: String) -> String? {
         guard let url = URL(string: address), let host = url.host?.lowercased() else { return nil }
         if host.hasSuffix("youtube.com") {
             if url.path == "/watch", let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "v" })?.value { return id }
             if url.path.hasPrefix("/shorts/") { return String(url.path.dropFirst(8)) }
         }
         if host == "youtu.be" { return String(url.path.dropFirst()) }
+        return nil
+    }
+}
+
+/// A sharp picture for something playing in a browser. The page only hands over a small one (a few hundred pixels, which
+/// looks soft full screen), so: for a YouTube video its real thumbnail; for another page the large picture the page names
+/// for sharing (og:image); else Apple's own artwork for the show, film or song, if it really is that.
+enum HighQualityArt {
+    static func find(for track: Track, videoID: String?, pageURL: String?) async -> URL? {
+        if let id = videoID {
+            for name in ["maxresdefault", "sddefault", "hqdefault"] {
+                guard let url = URL(string: "https://i.ytimg.com/vi/\(id)/\(name).jpg") else { continue }
+                var request = URLRequest(url: url, timeoutInterval: 8)
+                request.httpMethod = "HEAD"
+                if let (_, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200 { return url }
+            }
+        }
+        if let pageURL, let image = await pageImage(pageURL) { return image }
+        return await appleArtwork(for: track)
+    }
+
+    /// The picture a page names for link previews: <meta property="og:image" content="...">.
+    private static func pageImage(_ address: String) async -> URL? {
+        guard let url = URL(string: address), url.scheme == "https" || url.scheme == "http" else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: 8)
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+              let html = String(data: data.prefix(400_000), encoding: .utf8),
+              let tag = try? NSRegularExpression(pattern: #"<meta[^>]+property=["']og:image["'][^>]*>"#, options: .caseInsensitive),
+              let hit = tag.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let range = Range(hit.range, in: html),
+              let content = try? NSRegularExpression(pattern: #"content=["']([^"']+)["']"#).firstMatch(in: String(html[range]), range: NSRange(html[range].startIndex..., in: html[range])),
+              let cr = Range(content.range(at: 1), in: String(html[range])) else { return nil }
+        let value = String(String(html[range])[cr]).replacingOccurrences(of: "&amp;", with: "&")
+        return URL(string: value, relativeTo: url)?.absoluteURL
+    }
+
+    private static func normal(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
+
+    private static func appleArtwork(for track: Track) async -> URL? {
+        // a show's name is its "artist", the episode its title; a song has both
+        let queries: [(term: String, media: String, entity: String)] = [
+            (track.artist, "tvShow", "tvSeason"), (track.artist, "movie", "movie"),
+            ([track.artist, track.title].filter { !$0.isEmpty }.joined(separator: " "), "music", "song"),
+        ]
+        let names = [normal(track.artist), normal(track.title)].filter { $0.count >= 3 }
+        for query in queries where !query.term.isEmpty {
+            var parts = URLComponents(string: "https://itunes.apple.com/search")!
+            parts.queryItems = [.init(name: "term", value: query.term), .init(name: "media", value: query.media),
+                                .init(name: "entity", value: query.entity), .init(name: "limit", value: "3")]
+            guard let url = parts.url, let (data, _) = try? await URLSession.shared.data(from: url),
+                  let results = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["results"] as? [[String: Any]] else { continue }
+            // only a result that really is this: its names must contain the show's or the song's
+            for r in results {
+                let fields = ["artistName", "collectionName", "trackName"].compactMap { r[$0] as? String }.map(normal)
+                guard let small = r["artworkUrl100"] as? String, names.contains(where: { n in fields.contains { $0.contains(n) || n.contains($0) && $0.count >= 4 } }) else { continue }
+                return URL(string: small.replacingOccurrences(of: "100x100bb", with: "1200x1200bb"))
+            }
+        }
         return nil
     }
 }

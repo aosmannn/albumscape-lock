@@ -295,6 +295,17 @@ final class PlayerModel: ObservableObject {
             if let cover = spotifyCover { var same = art ?? AlbumArt(album: now.album); same.coverURL = cover; art = same }
             if Task.isCancelled { return }
             incomplete = found?.complete == false
+            if art?.coverURL == nil, now.source == SystemNowPlaying.bundle {
+                // a browser's picture is small: look for a sharp one (the video's own thumbnail, or Apple's artwork)
+                let tab = await SystemNowPlaying.shared.videoID(for: now)
+                let page = await SystemNowPlaying.shared.tabURL(for: now)
+                if let sharp = await HighQualityArt.find(for: now, videoID: tab, pageURL: page) {
+                    var better = art ?? AlbumArt(album: now.album)
+                    better.coverURL = sharp
+                    art = better
+                    Debug.log("sharp artwork for \(now.key): \(sharp.lastPathComponent)")
+                }
+            }
             if art?.coverURL == nil, let cover = ownCover {
                 var fallback = art ?? AlbumArt(album: now.album)  // Spotify's own cover, when the album lookup finds nothing
                 fallback.coverURL = cover
