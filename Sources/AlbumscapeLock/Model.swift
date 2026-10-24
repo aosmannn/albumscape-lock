@@ -83,6 +83,10 @@ final class PlayerModel: ObservableObject {
     static var idleShuffleOn: Bool { UserDefaults.standard.object(forKey: "idleShuffle") as? Bool != false }
     /// What the screen shows: the shuffled animation while idle, else the song's own art.
     var displayArt: AlbumArt? { idleArt ?? art }
+    /// The song the current `art` really belongs to (the last song's art stays on screen while the new one is looked up).
+    private(set) var artTrackKey = ""
+    /// False while `art` is still the previous song's: a lock screen that appears at that moment shouldn't flash it.
+    var artIsCurrent: Bool { idleArt != nil || artTrackKey == track?.key }
 
     /// The shuffle was turned off in Settings: stop it now.
     func skipIdleOff() { updateIdle() }
@@ -240,6 +244,7 @@ final class PlayerModel: ObservableObject {
         var shown = art
         if let saved = AlbumDB.shared.accent(for: now) { shown?.accent = saved }
         self.art = shown
+        artTrackKey = now.key
     }
 
     private func loadSong(_ now: Track) async {
@@ -324,6 +329,7 @@ final class PlayerModel: ObservableObject {
            (try? await URLSession.shared.data(from: large)) != nil, !Task.isCancelled, track?.key == now.key {
             art?.coverURL = large
             self.art = art
+            artTrackKey = now.key
         }
         if AlbumDB.shared.accent(for: now) == nil, let cover = art?.coverURL, let accent = await CoverColor.vivid(from: cover) {  // the cover's own colour, not Apple's text colours
             AlbumDB.shared.setAccent(accent, for: now)

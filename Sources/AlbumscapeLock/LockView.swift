@@ -256,7 +256,9 @@ struct MediaLayer: View {
             }
         }
         .clipped()
-        .task(id: model.displayArt?.coverURL) {
+        .task(id: [model.displayArt?.coverURL?.absoluteString ?? "", model.artIsCurrent ? "now" : "stale"]) {
+            // appearing while the art is still the last song's: show nothing yet, rather than flash it and swap
+            if coverFront == nil, !model.artIsCurrent { return }
             guard let url = model.displayArt?.coverURL, let (data, _) = try? await URLSession.shared.data(from: url), let image = NSImage(data: data), !Task.isCancelled else { return }
             coverBack = coverFront
             coverFront = image
