@@ -18,6 +18,9 @@ final class TapHostingView<Content: View>: NSHostingView<Content> {
     /// here, in view coordinates measured from the top, rather than by a SwiftUI gesture whose coordinates drifted.
     var onBadgeClick: (() -> Void)?
     var onBackgroundClick: (() -> Void)?
+    /// A double click anywhere: the art steps aside completely, so the lock screen's own password box is never hidden.
+    var onDoubleClick: (() -> Void)?
+    private var pendingClick: DispatchWorkItem?
 
     /// The full-screen video's web view would otherwise take the click for itself.
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -30,7 +33,19 @@ final class TapHostingView<Content: View>: NSHostingView<Content> {
         let p = convert(event.locationInWindow, from: nil)
         let fromTop = isFlipped ? p.y : bounds.height - p.y
         Debug.log("full-screen click at \(Int(p.x)),\(Int(fromTop))")
-        if p.x < LyricsBadge.hitSize.width, fromTop < LyricsBadge.hitSize.height { onBadgeClick?() } else { background() }
+        if p.x < LyricsBadge.hitSize.width, fromTop < LyricsBadge.hitSize.height { onBadgeClick?(); return }
+        // a single click waits a moment to see whether it is the first half of a double click
+        if event.clickCount >= 2, let double = onDoubleClick {
+            pendingClick?.cancel(); pendingClick = nil
+            Debug.log("double click: stepping aside")
+            double()
+            return
+        }
+        guard onDoubleClick != nil else { background(); return }
+        pendingClick?.cancel()
+        let work = DispatchWorkItem { background() }
+        pendingClick = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: work)
     }
 }
 
@@ -100,6 +115,7 @@ final class Overlay {
             window.ignoresMouseEvents = onLockScreen == false
             let full = TapHostingView(rootView: FullScreenView(model: model))
             full.onBadgeClick = { [model] in model.toggleLyrics() }
+            full.onDoubleClick = { [weak self] in self?.onDismiss() }
             full.onBackgroundClick = { [model] in if model.idleArt == nil { model.expanded = false } else { model.skipIdle() } }  // the idle shuffle has no player to shrink to: a click skips to the next cover
             window.contentView = full
             window.setFrame(screen.frame, display: true)
@@ -352,6 +368,7 @@ final class Overlay {
                     guard let self, self.model.expanded else { return }
                     let host = TapHostingView(rootView: FullScreenView(model: self.model))
                     host.onBadgeClick = { [model = self.model] in model.toggleLyrics() }
+                    host.onDoubleClick = { [weak self] in self?.onDismiss() }
                     host.onBackgroundClick = { [model = self.model] in if model.idleArt == nil { model.expanded = false } else { model.skipIdle() } }
                     window.isOpaque = true
                     window.backgroundColor = .black
